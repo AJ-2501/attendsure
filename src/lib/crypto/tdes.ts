@@ -20,6 +20,7 @@ import { createCipheriv, createDecipheriv, createHmac, getCiphers, randomBytes, 
 
 const ALGO = "des-ede3-cbc";
 const VERSION = "v1";
+const MAX_PLAINTEXT = 2048;
 
 export class CryptoConfigError extends Error {
   constructor(message: string) {
@@ -92,6 +93,7 @@ function mac(key: Buffer, iv: Buffer, ct: Buffer, context: string) {
  * (e.g. "registrations.student_id") so values cannot be swapped between fields.
  */
 export function tdesEncrypt(plaintext: string, context: string): string {
+  if (plaintext.length > MAX_PLAINTEXT) throw new RangeError("Plaintext too long");
   const { enc, mac: macKey } = loadTdesKeys();
   const iv = randomBytes(8);
   const cipher = createCipheriv(ALGO, enc, iv);

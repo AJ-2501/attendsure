@@ -111,3 +111,23 @@ export interface EventStats {
   rejected_scans: number;
   accepted_scans: number;
 }
+
+/** Display-safe event fields for public pages (no internal ids or validation rules). */
+export interface PublicEvent {
+  id: string;
+  name: string;
+  description: string;
+  venue: string;
+  organizer: string;
+  timezone: string;
+  starts_at: string;
+  ends_at: string;
+  registration_opens_at: string;
+  registration_closes_at: string;
+  time_in_opens_at: string;
+  time_in_closes_at: string;
+  time_out_opens_at: string | null;
+  time_out_closes_at: string | null;
+  capacity: number;
+  allow_time_out: boolean;
+}

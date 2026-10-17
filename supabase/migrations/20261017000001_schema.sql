@@ -22,7 +22,7 @@ create table public.profiles (
 -- ---------------------------------------------------------------------------
 create table public.events (
   id                      uuid primary key default gen_random_uuid(),
-  slug                    text not null unique default encode(gen_random_bytes(6), 'hex'),
+  slug                    text not null unique default left(replace(gen_random_uuid()::text, '-', ''), 12),
   name                    text not null check (char_length(name) between 3 and 160),
   description             text not null default '' check (char_length(description) <= 4000),
   venue                   text not null check (char_length(venue) between 2 and 200),

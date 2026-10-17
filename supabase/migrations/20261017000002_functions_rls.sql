@@ -29,8 +29,9 @@ language sql stable as $$
   end
 $$;
 
+-- pgcrypto lives in the "extensions" schema on Supabase.
 create or replace function public.gen_ref(prefix text) returns text
-language sql volatile as $$
+language sql volatile set search_path = public, extensions as $$
   select prefix || '-' || upper(encode(gen_random_bytes(5), 'hex'))
 $$;
 

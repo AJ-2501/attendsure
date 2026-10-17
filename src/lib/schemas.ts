@@ -68,6 +68,7 @@ export function buildRegistrationSchema(rules: RegistrationRules) {
             .string()
             .min(3, "Enter your full name")
             .max(120, "Name is too long")
+            .regex(/\S\s+\S/, "Enter your first and last name")
             .regex(/^[\p{L}][\p{L}\s.'’-]*$/u, "Name may only contain letters, spaces, periods, hyphens and apostrophes"),
         ),
       studentId: z

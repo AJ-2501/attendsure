@@ -29,6 +29,16 @@ export function timeOutWindow(e: Pick<EventRow, "starts_at" | "ends_at" | "time_
   };
 }
 
+/** Badge class per status (see .badge-* in globals.css). */
+export const STATUS_BADGE: Record<EffectiveStatus, string> = {
+  open: "badge-green",
+  ongoing: "badge-blue",
+  upcoming: "badge-yellow",
+  completed: "badge-gray",
+  cancelled: "badge-red",
+  draft: "badge-gray",
+};
+
 export const STATUS_LABEL: Record<EffectiveStatus, string> = {
   draft: "Draft",
   upcoming: "Upcoming",
@@ -43,6 +53,25 @@ export function formatInZone(iso: string | null | undefined, timeZone: string, o
   if (!iso) return "—";
   const o = Object.keys(opts).length ? opts : { dateStyle: "medium" as const, timeStyle: "short" as const };
   return new Intl.DateTimeFormat("en-PH", { timeZone, ...o }).format(new Date(iso));
+}
+
+/** "9:00 AM – 12:00 PM" on one day, otherwise "Oct 10, 9:00 AM – Oct 12, 5:00 PM". */
+export function formatTimeRange(startIso: string, endIso: string, timeZone: string) {
+  const day = (iso: string) => formatInZone(iso, timeZone, { year: "numeric", month: "2-digit", day: "2-digit" });
+  const time = (iso: string) => formatInZone(iso, timeZone, { timeStyle: "short" });
+  if (day(startIso) === day(endIso)) return `${time(startIso)} – ${time(endIso)}`;
+  const dt = (iso: string) => formatInZone(iso, timeZone, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${dt(startIso)} – ${dt(endIso)}`;
+}
+
+/** Where `now` sits relative to the registration window (mirrors register_participant's check). */
+export function registrationPhase(
+  e: Pick<EventRow, "registration_opens_at" | "registration_closes_at">,
+  now: Date = new Date(),
+): "before" | "open" | "after" {
+  const t = now.getTime();
+  if (t < Date.parse(e.registration_opens_at)) return "before";
+  return t < Date.parse(e.registration_closes_at) ? "open" : "after";
 }
 
 export function zoneAbbrev(timeZone: string, at: Date = new Date()) {

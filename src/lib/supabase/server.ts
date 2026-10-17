@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { env, serverEnv } from "@/lib/env";
 
@@ -21,16 +21,20 @@ export async function createClient() {
   });
 }
 
-let admin: ReturnType<typeof createSupabaseClient> | null = null;
+// No generated Database types: rows are untyped and narrowed at call sites.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UntypedClient = SupabaseClient<any, "public", "public", any>;
+
+let admin: UntypedClient | null = null;
 /**
  * Service-role client. Bypasses RLS — ONLY call after server-side authorization
  * (requireStaff) or for tightly scoped public operations (registration RPC).
  */
-export function createAdminClient() {
+export function createAdminClient(): UntypedClient {
   if (!admin) {
     admin = createSupabaseClient(env.supabaseUrl, serverEnv().serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
-    });
+    }) as UntypedClient;
   }
   return admin;
 }
