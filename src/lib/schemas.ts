@@ -118,7 +118,8 @@ export type AttendanceAction = z.infer<typeof attendanceActionSchema>;
 
 export const scanRequestSchema = z.object({
   eventId: z.string().uuid(),
-  action: attendanceActionSchema,
+  /** "auto" = use the action the QR was issued for (time-in pass vs time-out pass). */
+  action: z.union([attendanceActionSchema, z.literal("auto")]),
   token: z.string().min(1).max(200),
   idempotencyKey: z.string().uuid(),
 });
@@ -249,3 +250,6 @@ export const studentSignupSchema = z.object({
     .regex(/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Reference codes look like SA-XXXX-XXXX"),
 });
 export type StudentSignupInput = z.input<typeof studentSignupSchema>;
+
+/** Email + password used when a student creates their account while registering. */
+export const accountSchema = studentSignupSchema.pick({ email: true, password: true });

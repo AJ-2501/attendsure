@@ -1,5 +1,5 @@
 import { ok, fail, handle } from "@/lib/api";
-import { requirePermission } from "@/lib/auth/session";
+import { message } from "@/lib/messages";
 import { selfIssueTimeOut } from "@/lib/services/credentials";
 import type { NextRequest } from "next/server";
 import { sha256Hex } from "@/lib/crypto/tokens";
@@ -28,6 +28,6 @@ export const GET = handle("timeout-qr", async (req: NextRequest) => {
   if (!reg) return fail(404, "NOT_FOUND", "Registration not found.");
 
   const result = await selfIssueTimeOut(reg.id);
-  if (!result.ok) return fail(400, result.code, result.code);
+  if (!result.ok) return fail(400, result.code, message(result.code));
   return ok({ token: result.token, expiresAt: result.expiresAt });
 });

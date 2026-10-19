@@ -16,7 +16,7 @@ export function rulesFor(event: Pick<EventRow, "student_id_pattern" | "student_i
 }
 
 export type RegisterResult =
-  | { ok: true; referenceCode: string; accessToken: string; eventName: string }
+  | { ok: true; registrationId: string; studentIdDigest: string; fullName: string; referenceCode: string; accessToken: string; eventName: string }
   | { ok: false; code: string; fields?: Record<string, string[]> };
 
 /**
@@ -58,9 +58,14 @@ export async function registerParticipant(raw: unknown): Promise<RegisterResult>
     p_time_in_token_hash: cred.tokenHash,
   } as never);
   if (error) throw new Error("register_participant failed");
-  const r = data as { ok: boolean; code: string };
+  const r = data as { ok: boolean; code: string; registration_id?: string };
   if (!r.ok) return { ok: false, code: r.code };
-  return { ok: true, referenceCode, accessToken: access.token, eventName: event.name };
+  let registrationId = r.registration_id ?? "";
+  if (!registrationId) {
+    const { data: row } = await db.from("registrations").select("id").eq("reference_code", referenceCode).single<{ id: string }>();
+    registrationId = row?.id ?? "";
+  }
+  return { ok: true, registrationId, studentIdDigest: digest, fullName: v.fullName, referenceCode, accessToken: access.token, eventName: event.name };
 }
 
 export interface ParticipantView {

@@ -40,6 +40,18 @@ export async function processScan(
   };
 }
 
+/** Peek at a scanned credential (no side effects): which action and event it was issued for. */
+export async function describeCredential(rawToken: string): Promise<{ action: "time_in" | "time_out"; eventId: string; eventName: string | null } | null> {
+  const tokenHash = hashScannedToken(rawToken);
+  if (!tokenHash) return null;
+  const { data } = await createAdminClient()
+    .from("qr_credentials")
+    .select("action, event_id, events(name)")
+    .eq("token_hash", tokenHash)
+    .maybeSingle<{ action: "time_in" | "time_out"; event_id: string; events: { name: string } | null }>();
+  return data ? { action: data.action, eventId: data.event_id, eventName: data.events?.name ?? null } : null;
+}
+
 export async function manualAttendance(
   registrationId: string,
   eventId: string,

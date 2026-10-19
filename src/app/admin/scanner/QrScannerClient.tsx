@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown } from "lucide-react";
+import { Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown, SwitchCamera } from "lucide-react";
 import { clsx } from "clsx";
 import { ACTION_LABEL } from "@/lib/messages";
 
@@ -9,6 +9,7 @@ interface ScanResult {
   code: string;
   accepted: boolean;
   message: string;
+  action?: "time_in" | "time_out";
   registrationId: string | null;
   recordedAt: string | null;
   confirmationRef: string | null;
@@ -20,22 +21,52 @@ interface Props {
   defaultEventId?: string;
 }
 
+type Mode = "auto" | "time_in" | "time_out";
+const MODES: { id: Mode; label: string }[] = [
+  { id: "auto", label: "Auto" },
+  { id: "time_in", label: "Time in" },
+  { id: "time_out", label: "Time out" },
+];
+
+/** Minimal shape of @zxing/browser's IScannerControls. */
+type ScannerControls = { stop: () => void };
+
+function cameraErrorMessage(err: unknown): string {
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    return "The camera needs a secure (https://) connection. Open the deployed site, or use localhost on this device.";
+  }
+  const name = err instanceof DOMException ? err.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "Camera permission was denied. Allow camera access in your browser settings, then tap Start camera.";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera was found on this device.";
+  if (name === "NotReadableError" || name === "AbortError") return "The camera is being used by another app. Close it and try again.";
+  return "Couldn't start the camera. Check permissions and try again.";
+}
+
 export default function QrScannerClient({ events, defaultEventId }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const controlsRef = useRef<ScannerControls | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [pending, setPending] = useState(false);
-  const [lastToken, setLastToken] = useState<string | null>(null);
   const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [eventId, setEventId] = useState(defaultEventId ?? events[0]?.id ?? "");
-  const [action, setAction] = useState<"time_in" | "time_out">("time_in");
+  const [action, setAction] = useState<Mode>("auto");
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [manualQuery, setManualQuery] = useState("");
   const [manualReason, setManualReason] = useState("");
   const [manualLoading, setManualLoading] = useState(false);
-  const scanCooldown = useRef(false);
+
+  // The decoder callback lives as long as the camera; read current settings through refs
+  // so switching event/mode mid-session takes effect immediately.
+  const settingsRef = useRef({ eventId, action, online, soundEnabled });
+  useEffect(() => {
+    settingsRef.current = { eventId, action, online, soundEnabled };
+  }, [eventId, action, online, soundEnabled]);
+  const busyRef = useRef(false);
+  const lastScanRef = useRef<{ text: string; at: number } | null>(null);
 
   // Online / offline tracking
   useEffect(() => {
@@ -47,7 +78,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
   }, []);
 
   const playSound = useCallback((accepted: boolean) => {
-    if (!soundEnabled || typeof AudioContext === "undefined") return;
+    if (!settingsRef.current.soundEnabled || typeof AudioContext === "undefined") return;
     try {
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
@@ -58,97 +89,141 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (accepted ? 0.4 : 0.6));
       osc.start(); osc.stop(ctx.currentTime + 0.6);
+      navigator.vibrate?.(accepted ? 80 : [60, 60, 60]);
     } catch {}
-  }, [soundEnabled]);
+  }, []);
 
-  const submitToken = useCallback(async (token: string) => {
-    if (!eventId || !online) return;
-    if (scanCooldown.current) return;
-    scanCooldown.current = true;
-    setTimeout(() => { scanCooldown.current = false; }, 2500);
+  const submitToken = useCallback(async (raw: string) => {
+    const { eventId: ev, action: mode, online: isOnline } = settingsRef.current;
+    const text = raw.trim();
+    if (!ev || busyRef.current) return;
+    // Ignore the same code held in frame (one submission per 4s per code).
+    const last = lastScanRef.current;
+    if (last && last.text === text && Date.now() - last.at < 4000) return;
+    lastScanRef.current = { text, at: Date.now() };
+    if (!isOnline) {
+      setResult({ code: "OFFLINE", accepted: false, message: "You're offline. This scan was not recorded.", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
+      return;
+    }
 
+    busyRef.current = true;
     setPending(true);
-    setLastToken(token);
     try {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, eventId, action, idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ token: text, eventId: ev, action: mode, idempotencyKey: crypto.randomUUID() }),
       });
       const json = await res.json();
       if (json.ok) {
         setResult(json.data);
         playSound(json.data.accepted);
       } else {
-        setResult({ code: json.error?.code ?? "ERROR", accepted: false, message: json.error?.message ?? "Server error", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
+        const message = res.status === 401 ? "Your session expired. Sign in again to keep scanning." : json.error?.message ?? "Server error";
+        setResult({ code: json.error?.code ?? "ERROR", accepted: false, message, registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
         playSound(false);
       }
     } catch {
-      setResult({ code: "NETWORK_ERROR", accepted: false, message: "Network error — scan not recorded.", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
+      setResult({ code: "NETWORK_ERROR", accepted: false, message: "Network error — scan not recorded. Try again.", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
       playSound(false);
     } finally {
+      busyRef.current = false;
       setPending(false);
     }
-  }, [eventId, action, online, playSound]);
-
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
-    setResult(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setScanning(true);
-
-      // Dynamically import ZXing for scanning
-      const { BrowserMultiFormatReader } = await import("@zxing/browser");
-      const reader = new BrowserMultiFormatReader();
-      if (videoRef.current) {
-        reader.decodeFromVideoElement(videoRef.current, (result, _err, controls) => {
-          if (result) {
-            const text = result.getText();
-            if (text !== lastToken || !scanCooldown.current) {
-              submitToken(text);
-            }
-          }
-        });
-      }
-    } catch (err) {
-      setCameraError("Camera access denied or unavailable. Please allow camera access.");
-      setScanning(false);
-    }
-  }, [submitToken, lastToken]);
+  }, [playSound]);
 
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
-    setResult(null);
   }, []);
 
-  useEffect(() => () => stopCamera(), [stopCamera]);
+  const startCamera = useCallback(async (cam: "environment" | "user" = facing) => {
+    setCameraError(null);
+    setResult(null);
+    stopCamera();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError(cameraErrorMessage(null));
+      return;
+    }
+    setStarting(true);
+    try {
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 150 });
+      if (!videoRef.current) return;
+      // decodeFromConstraints opens the camera, attaches it to the <video> and keeps decoding.
+      controlsRef.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: cam }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+        videoRef.current,
+        (res) => {
+          if (res) void submitToken(res.getText());
+        },
+      );
+      setScanning(true);
+    } catch (err) {
+      setCameraError(cameraErrorMessage(err));
+      stopCamera();
+    } finally {
+      setStarting(false);
+    }
+  }, [facing, stopCamera, submitToken]);
+
+  function flipCamera() {
+    const next = facing === "environment" ? "user" : "environment";
+    setFacing(next);
+    if (scanning) void startCamera(next);
+  }
+
+  // Stop the camera when leaving the page or hiding the tab (saves battery, frees the camera).
+  useEffect(() => {
+    const onHide = () => document.visibilityState === "hidden" && stopCamera();
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      stopCamera();
+    };
+  }, [stopCamera]);
+
+  // Auto-dismiss successful results so the next student can step up.
+  useEffect(() => {
+    if (!result?.accepted) return;
+    const t = setTimeout(() => setResult((r) => (r === result ? null : r)), 6000);
+    return () => clearTimeout(t);
+  }, [result]);
 
   async function submitManual(e: React.FormEvent) {
     e.preventDefault();
     if (!manualQuery.trim() || !eventId) return;
     setManualLoading(true);
     try {
-      const lookupRes = await fetch(`/api/participants/lookup?q=${encodeURIComponent(manualQuery)}&eventId=${eventId}`);
+      const lookupRes = await fetch(`/api/participants/lookup?q=${encodeURIComponent(manualQuery.trim())}&eventId=${eventId}`);
       const lookupJson = await lookupRes.json();
       if (!lookupJson.ok || !lookupJson.data?.registrationId) {
-        setResult({ code: "NOT_FOUND", accepted: false, message: "Participant not found in this event.", registrationId: null, recordedAt: null, confirmationRef: null, identity: lookupJson.data?.identity ?? null });
+        setResult({ code: "NOT_FOUND", accepted: false, message: "No registration found for that student ID or reference code in this event.", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
+        playSound(false);
         return;
       }
+      const att = lookupJson.data.attendance as { timeInAt: string | null; timeOutAt: string | null } | undefined;
+      const manualAction = action === "auto" ? (att?.timeInAt ? "time_out" : "time_in") : action;
       const res = await fetch("/api/attendance/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, registrationId: lookupJson.data.registrationId, action, reason: manualReason || "Manual lookup", idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ eventId, registrationId: lookupJson.data.registrationId, action: manualAction, reason: manualReason.trim() || "Manual entry at the door", idempotencyKey: crypto.randomUUID() }),
       });
       const json = await res.json();
-      if (json.ok) { setResult(json.data); playSound(json.data.accepted); }
-      else { setResult({ code: json.error?.code ?? "ERROR", accepted: false, message: json.error?.message ?? "Error", registrationId: null, recordedAt: null, confirmationRef: null, identity: null }); playSound(false); }
+      if (json.ok) {
+        setResult({ ...json.data, action: manualAction });
+        playSound(json.data.accepted);
+        if (json.data.accepted) setManualQuery("");
+      } else {
+        setResult({ code: json.error?.code ?? "ERROR", accepted: false, message: json.error?.message ?? "Error", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
+        playSound(false);
+      }
+    } catch {
+      setResult({ code: "NETWORK_ERROR", accepted: false, message: "Network error — not recorded. Try again.", registrationId: null, recordedAt: null, confirmationRef: null, identity: null });
     } finally {
       setManualLoading(false);
     }
@@ -180,19 +255,24 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
         </div>
       </div>
 
-      <div role="radiogroup" aria-label="Scan action" className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-[#e1ecea]">
-        {(["time_in", "time_out"] as const).map((a) => (
-          <button
-            key={a}
-            type="button"
-            role="radio"
-            aria-checked={action === a}
-            onClick={() => setAction(a)}
-            className={clsx("min-h-12 rounded-xl text-[15px] font-bold transition-colors", action === a ? "bg-brand-600 text-white shadow" : "text-[#23403f]")}
-          >
-            {ACTION_LABEL[a]}
-          </button>
-        ))}
+      <div>
+        <div role="radiogroup" aria-label="Scan action" className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-[#e1ecea]">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="radio"
+              aria-checked={action === m.id}
+              onClick={() => setAction(m.id)}
+              className={clsx("min-h-12 rounded-xl text-[15px] font-bold transition-colors", action === m.id ? "bg-brand-600 text-white shadow" : "text-[#23403f]")}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-[#4b6362]">
+          {action === "auto" ? "Auto records time in or time out based on the pass the student shows." : `Only ${ACTION_LABEL[action]} passes will be accepted.`}
+        </p>
       </div>
 
       {/* Camera */}
@@ -226,13 +306,18 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
 
         <div className="p-3">
           {!scanning ? (
-            <button onClick={startCamera} disabled={!eventId} className="btn-primary btn-lg w-full">
-              <Camera className="w-5 h-5" /> Start camera
+            <button onClick={() => startCamera()} disabled={!eventId || starting} className="btn-primary btn-lg w-full">
+              {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />} {starting ? "Starting camera…" : "Start camera"}
             </button>
           ) : (
-            <button onClick={stopCamera} className="btn btn-lg w-full bg-white/10 text-white hover:bg-white/20">
-              <CameraOff className="w-5 h-5" /> Stop camera
-            </button>
+            <div className="flex gap-2">
+              <button onClick={stopCamera} className="btn btn-lg flex-1 bg-white/10 text-white hover:bg-white/20">
+                <CameraOff className="w-5 h-5" /> Stop camera
+              </button>
+              <button onClick={flipCamera} className="btn btn-lg w-14 px-0 bg-white/10 text-white hover:bg-white/20" aria-label="Switch camera">
+                <SwitchCamera className="w-5 h-5" />
+              </button>
+            </div>
           )}
         </div>
         {cameraError && <p className="px-4 pb-4 text-sm text-[#ffb4a6]" role="alert">{cameraError}</p>}
@@ -247,7 +332,9 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
                 {result.accepted ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-extrabold">{result.accepted ? "Attendance recorded" : "Scan rejected"}</p>
+                <p className="font-extrabold">
+                  {result.accepted ? `${result.action ? ACTION_LABEL[result.action] : "Attendance"} recorded` : "Not recorded"}
+                </p>
                 <p className="text-sm mt-0.5">{result.message}</p>
                 {result.identity && <p className="text-sm font-semibold text-ink mt-1">{result.identity.fullName}</p>}
                 {result.recordedAt && (
@@ -280,7 +367,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
             <input id="manual-reason" value={manualReason} onChange={(e) => setManualReason(e.target.value)} className="input" placeholder="QR pass damaged / phone battery dead" required />
           </div>
           <button type="submit" disabled={manualLoading || !manualQuery.trim()} className="btn-primary btn-lg w-full">
-            {manualLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Looking up…</> : `Record ${ACTION_LABEL[action].toLowerCase()}`}
+            {manualLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Looking up…</> : action === "auto" ? "Record attendance" : `Record ${ACTION_LABEL[action].toLowerCase()}`}
           </button>
         </form>
       </details>

@@ -18,11 +18,11 @@ export const POST = handle("student-signup", async (req: NextRequest) => {
     case "INVALID_PROOF":
       // Deliberately vague: never reveal whether a student ID or code exists.
       return fail(400, result.code, "We couldn't match that student ID and reference code. Check both and try again.");
-    case "ALREADY_LINKED":
-      return fail(409, result.code, "An account already exists for this student ID. Sign in instead.");
+    case "ALREADY_CLAIMED":
+      return fail(409, result.code, "That registration already belongs to an account. Sign in instead.");
     case "EMAIL_TAKEN":
       return fail(409, result.code, "That email is already in use. Sign in or use another email.");
-    case "NOT_MIGRATED":
-      return fail(503, result.code, "Student accounts are not enabled yet. Please contact the College of Nursing office.");
+    case "ERROR":
+      return fail(500, result.code, "Couldn't create your account. Please try again.");
   }
 });
