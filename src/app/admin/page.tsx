@@ -3,7 +3,7 @@ import { requirePagePermission } from "@/lib/auth/session";
 import { listAllEvents } from "@/lib/services/events";
 import { getEventStats } from "@/lib/services/attendance";
 import { effectiveStatus, STATUS_LABEL, formatInZone } from "@/lib/time";
-import { ChevronRight, ScanLine, Plus } from "lucide-react";
+import { ChevronRight, ScanLine, Plus, Users, Download } from "lucide-react";
 import { clsx } from "clsx";
 import Link from "next/link";
 import DashboardRealtime from "./DashboardRealtime";
@@ -30,7 +30,7 @@ function ProgressRing({ pct }: { pct: number }) {
 }
 
 export default async function AdminDashboard() {
-  await requirePagePermission("dashboard.view");
+  const staff = await requirePagePermission("dashboard.view");
   const { events } = await listAllEvents(1, 10);
   const now = new Date();
 
@@ -43,15 +43,33 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-ink">Dashboard</h1>
-          <p className="text-[#4b6362] text-sm mt-0.5">Live attendance overview</p>
-        </div>
-        <Link href="/admin/scanner" className="btn-primary hidden sm:inline-flex">
-          <ScanLine className="w-4 h-4" /> Open scanner
-        </Link>
+      <div>
+        <p className="text-sm text-[#4b6362]">{greeting(now)}{staff.displayName ? `, ${staff.displayName.split(" ")[0]}` : ""}</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-ink">Dashboard</h1>
       </div>
+
+      {/* Quick actions: the most frequent jobs, one tap away */}
+      <nav aria-label="Quick actions" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {[
+          { href: "/admin/scanner", icon: ScanLine, label: "Scan QR", primary: true },
+          { href: primary ? `/admin/participants?event=${primary.id}` : "/admin/participants", icon: Users, label: "Attendance" },
+          { href: "/admin/events/new", icon: Plus, label: "New event" },
+          ...(primary ? [{ href: `/api/reports/export?eventId=${primary.id}`, icon: Download, label: "Export CSV" }] : []),
+        ].map(({ href, icon: Icon, label, primary: isPrimary }) => (
+          <Link
+            key={label}
+            href={href}
+            prefetch={href.startsWith("/api") ? false : undefined}
+            className={clsx(
+              "min-h-[4.5rem] rounded-2xl p-3 flex flex-col justify-between gap-2 font-semibold text-sm transition-colors",
+              isPrimary ? "bg-brand-600 text-white hover:bg-brand-700 shadow-[0_8px_20px_rgb(15_118_110/0.3)]" : "card text-ink hover:border-brand-300",
+            )}
+          >
+            <Icon className="w-5 h-5" aria-hidden="true" />
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       {stats && primary && (
         <section className="space-y-3">
@@ -147,6 +165,11 @@ export default async function AdminDashboard() {
       </section>
     </div>
   );
+}
+
+function greeting(d: Date) {
+  const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", hourCycle: "h23" }).format(d));
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
 function Stat({ label, value, tone, className }: { label: string; value: number; tone?: "danger"; className?: string }) {

@@ -10,7 +10,7 @@ import { Logo } from "@/components/Brand";
 const LINKS = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard", exact: true },
   { href: "/admin/scanner", icon: ScanLine, label: "Scanner" },
-  { href: "/admin/participants", icon: Users, label: "Participants" },
+  { href: "/admin/participants", icon: Users, label: "Attendance" },
   { href: "/admin/events", icon: Calendar, label: "Events" },
   { href: "/admin/reports", icon: BarChart2, label: "Reports" },
   { href: "/admin/audit", icon: ClipboardList, label: "Audit Log" },
@@ -75,9 +75,12 @@ export default function AdminShell({ displayName, email, role, children }: Props
 
   const tabs = [
     { href: "/admin", icon: Home, label: "Home", exact: true },
-    { href: "/admin/participants", icon: Users, label: "Students" },
+    { href: "/admin/events", icon: Calendar, label: "Events" },
   ];
-  const tabsRight = [{ href: "/admin/reports", icon: BarChart2, label: "Reports" }];
+  const tabsRight = [
+    { href: "/admin/participants", icon: Users, label: "Attendance" },
+    { href: "/admin/reports", icon: BarChart2, label: "Reports" },
+  ];
 
   return (
     <div className="flex min-h-dvh lg:h-dvh lg:overflow-hidden bg-[#f3f7f6]">
@@ -117,11 +120,20 @@ export default function AdminShell({ displayName, email, role, children }: Props
 
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 lg:overflow-hidden">
-        <header className="lg:hidden sticky top-0 z-20 flex items-center justify-between px-4 h-14 pt-[env(safe-area-inset-top)] box-content bg-ink text-white">
+        <header className="lg:hidden sticky top-0 z-20 flex items-center justify-between gap-3 pl-4 pr-2 h-14 pt-[env(safe-area-inset-top)] box-content bg-ink text-white">
           <Logo size="sm" tone="dark" />
-          <span className="text-sm font-semibold text-[#a7c9c6]">{current?.label}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm font-semibold text-[#a7c9c6] truncate">{current?.label}</span>
+            <button type="button" onClick={() => setDrawerOpen(true)} className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/10" aria-expanded={drawerOpen} aria-label="Open menu">
+              <Menu className="w-[22px] h-[22px]" />
+            </button>
+          </div>
         </header>
-        <main className="flex-1 lg:overflow-y-auto p-4 sm:p-6 lg:p-8 pb-tabbar lg:pb-8">{children}</main>
+        {/* min-h-0 lets this flex child scroll instead of growing past the viewport (desktop);
+            bottom padding keeps content clear of the fixed tab bar (mobile/tablet). */}
+        <main className="flex-1 min-h-0 lg:overflow-y-auto overscroll-contain px-4 pt-4 sm:px-6 sm:pt-6 lg:p-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-10">
+          <div className="max-w-6xl mx-auto">{children}</div>
+        </main>
       </div>
 
       {/* Mobile bottom tab bar */}
@@ -142,10 +154,6 @@ export default function AdminShell({ displayName, email, role, children }: Props
             {label}
           </Link>
         ))}
-        <button type="button" onClick={() => setDrawerOpen(true)} className="tab-link" aria-expanded={drawerOpen} aria-label="More pages">
-          <Menu className="w-[22px] h-[22px]" />
-          More
-        </button>
       </nav>
     </div>
   );

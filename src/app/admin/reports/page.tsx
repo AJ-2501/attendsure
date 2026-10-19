@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import EventPicker from "../EventPicker";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listAllEvents } from "@/lib/services/events";
 import { getEventStats, getSectionBreakdown, getAuditLog } from "@/lib/services/attendance";
@@ -24,10 +25,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   ]);
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-5 sm:space-y-8 animate-fade-up">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Attendance Reports</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-ink">Attendance Reports</h1>
           {activeEvent && <p className="text-slate-500 text-sm">{activeEvent.name}</p>}
         </div>
         {eventId && (
@@ -38,12 +39,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </div>
 
       {/* Event selector */}
-      <form className="flex gap-3" method="GET">
-        <select name="event" defaultValue={eventId} className="input max-w-xs">
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
-        <button type="submit" className="btn-primary btn-sm">View</button>
-      </form>
+      <EventPicker events={events} value={eventId} />
 
       {stats && (
         <>

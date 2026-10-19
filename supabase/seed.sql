@@ -33,7 +33,7 @@ insert into public.events (
   now() + interval '30 minutes',
   now() + interval '2 hours',
   900, 300, 'published',
-  '^[0-9]{4}-[0-9]{5}$',
-  'Format: 2024-12345',
+  '^[0-9]{10}$',
+  'Format: 2021001955 (10 digits, no dash)',
   '{"department":true,"year_level":true,"email":false}'::jsonb
 ) on conflict (id) do nothing;

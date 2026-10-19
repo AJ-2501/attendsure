@@ -6,6 +6,7 @@ import ParticipantClient from "./ParticipantClient";
 
 interface Props {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -15,8 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ParticipantPage({ params }: Props) {
+export default async function ParticipantPage({ params, searchParams }: Props) {
   const { token } = await params;
+  const { from } = await searchParams;
   const view = await getParticipantByAccessToken(token);
   if (!view) notFound();
 
@@ -62,5 +64,6 @@ export default async function ParticipantPage({ params }: Props) {
     timeInToken,
   };
 
-  return <ParticipantClient data={data} accessToken={token} />;
+  const back = from === "me" ? { href: "/me", label: "My attendance" } : { href: "/#events", label: "Events" };
+  return <ParticipantClient data={data} accessToken={token} back={back} />;
 }

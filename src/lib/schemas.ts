@@ -228,3 +228,24 @@ export const roleSchema = z.object({
   role: z.enum(["super_admin", "event_admin", "scanner_staff", "student"]),
   reason: z.string().trim().min(5).max(500),
 });
+
+/** Student account creation: proves ownership with a reference code from one of their registrations. */
+export const studentSignupSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address").max(254),
+  password: z
+    .string()
+    .min(8, "Use at least 8 characters")
+    .max(72, "Use at most 72 characters")
+    .regex(/[A-Za-z]/, "Include at least one letter")
+    .regex(/[0-9]/, "Include at least one number"),
+  studentId: z
+    .string()
+    .transform(normalizeStudentId)
+    .pipe(z.string().regex(/^[0-9A-Z-]{4,32}$/, "Enter the student ID you registered with")),
+  referenceCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Reference codes look like SA-XXXX-XXXX"),
+});
+export type StudentSignupInput = z.input<typeof studentSignupSchema>;

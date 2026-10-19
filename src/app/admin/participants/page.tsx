@@ -56,7 +56,7 @@ export default async function ParticipantsPage({
     <div className="space-y-6 animate-fade-up">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Participants</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-ink">Participants</h1>
           <p className="text-slate-500 text-sm">{total.toLocaleString()} registrations</p>
         </div>
         {activeEventId && (
@@ -71,89 +71,114 @@ export default async function ParticipantsPage({
       </div>
 
       {/* Filters */}
-      <form className="card p-4 flex flex-wrap gap-3" method="GET">
-        <input type="hidden" name="event" value={activeEventId} />
-        <select name="event" className="input max-w-[200px]" defaultValue={activeEventId}>
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
-        <input name="q" defaultValue={q} placeholder="Name or reference…" className="input max-w-[180px]" />
-        <input name="section" defaultValue={section} placeholder="Section…" className="input max-w-[120px]" />
-        <select name="status" className="input max-w-[140px]" defaultValue={status}>
-          <option value="">All statuses</option>
-          <option value="absent">Not arrived</option>
-          <option value="checked_in">Checked in</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <button type="submit" className="btn-primary btn-sm">Filter</button>
+      <form className="card p-3 sm:p-4 grid grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-3 items-end" method="GET">
+        <div className="col-span-2 lg:col-span-1 min-w-0">
+          <label htmlFor="f-event" className="label">Event</label>
+          <select id="f-event" name="event" className="input" defaultValue={activeEventId}>
+            {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div className="col-span-2 lg:col-span-1 min-w-0">
+          <label htmlFor="f-q" className="label">Search</label>
+          <input id="f-q" type="search" name="q" defaultValue={q} placeholder="Name or reference code" className="input" enterKeyHint="search" />
+        </div>
+        <div className="min-w-0">
+          <label htmlFor="f-section" className="label">Section</label>
+          <input id="f-section" name="section" defaultValue={section} placeholder="BSN 2-B" className="input" autoCapitalize="characters" />
+        </div>
+        <div className="min-w-0">
+          <label htmlFor="f-status" className="label">Status</label>
+          <select id="f-status" name="status" className="input" defaultValue={status}>
+            <option value="">All</option>
+            <option value="absent">Not arrived</option>
+            <option value="checked_in">Checked in</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <button type="submit" className="btn-primary col-span-2 lg:col-span-1">Apply filters</button>
       </form>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table-auto w-full">
-            <thead>
-              <tr>
-                <th>Participant</th>
-                <th>Section</th>
-                <th>Time In</th>
-                <th>Time Out</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr><td colSpan={6} className="py-10 text-center text-slate-400">No registrations found.</td></tr>
-              )}
-              {rows.map((reg: RegistrationRow & { attendance_records?: { time_in_at?: string; time_out_at?: string; status?: string }[] }) => {
-                let name = "—";
-                try { name = decryptIdentity(reg).fullName; } catch {}
-                const att = reg.attendance_records?.[0];
-                const attStatus = att?.status ?? "absent";
-                return (
-                  <tr key={reg.id}>
-                    <td>
-                      <div className="font-medium text-slate-900">{name}</div>
-                      <div className="text-xs text-slate-400 font-mono">{reg.reference_code}</div>
-                    </td>
-                    <td className="text-slate-500">{reg.section}</td>
-                    <td className="text-xs text-slate-500">
-                      {att?.time_in_at ? formatInZone(att.time_in_at, activeEvent?.timezone ?? "UTC", { timeStyle: "short" }) : "—"}
-                    </td>
-                    <td className="text-xs text-slate-500">
-                      {att?.time_out_at ? formatInZone(att.time_out_at, activeEvent?.timezone ?? "UTC", { timeStyle: "short" }) : "—"}
-                    </td>
-                    <td>
-                      <span className={clsx("badge", STATUS_CLASS[attStatus] ?? "badge-gray")}>
-                        {attStatus.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td>
-                      <Link href={`/admin/participants/${reg.id}`} className="text-brand-600 text-xs hover:underline">
-                        View
-                      </Link>
-                    </td>
+      {(() => {
+        const tz = activeEvent?.timezone ?? "UTC";
+        const items = rows.map((reg: RegistrationRow & { attendance_records?: { time_in_at?: string; time_out_at?: string; status?: string }[] }) => {
+          let name = "—";
+          try { name = decryptIdentity(reg).fullName; } catch {}
+          const att = reg.attendance_records?.[0];
+          const attStatus = reg.registration_status === "cancelled" ? "cancelled" : (att?.status ?? "absent");
+          const t = (iso?: string) => (iso ? formatInZone(iso, tz, { timeStyle: "short" }) : "—");
+          return { reg, name, att, attStatus, timeIn: t(att?.time_in_at), timeOut: t(att?.time_out_at) };
+        });
+        const label = (s: string) => ({ absent: "Not arrived", checked_in: "Checked in", completed: "Completed", cancelled: "Cancelled" })[s] ?? s;
+        return (
+          <div className="card overflow-hidden">
+            {/* Phone: card list */}
+            <ul className="sm:hidden divide-y divide-[#eef4f3]">
+              {items.length === 0 && <li className="py-10 text-center text-sm text-[#4b6362]">No registrations found.</li>}
+              {items.map(({ reg, name, attStatus, timeIn, timeOut }) => (
+                <li key={reg.id}>
+                  <Link href={`/admin/participants/${reg.id}`} className="flex items-center gap-3 px-4 py-3 active:bg-[#f3f7f6]">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-ink truncate">{name}</p>
+                      <p className="text-xs text-[#4b6362]"><span className="font-mono">{reg.reference_code}</span> · {reg.section}</p>
+                      <p className="text-xs text-[#4b6362] mt-0.5">In {timeIn} · Out {timeOut}</p>
+                    </div>
+                    <span className={clsx("badge shrink-0", STATUS_CLASS[attStatus] ?? "badge-gray")}>{label(attStatus)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {/* Tablet & desktop: table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="table-auto w-full">
+                <thead>
+                  <tr>
+                    <th>Participant</th>
+                    <th>Section</th>
+                    <th>Time in</th>
+                    <th>Time out</th>
+                    <th>Status</th>
+                    <th><span className="sr-only">Actions</span></th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {items.length === 0 && (
+                    <tr><td colSpan={6} className="py-10 text-center text-[#4b6362]">No registrations found.</td></tr>
+                  )}
+                  {items.map(({ reg, name, attStatus, timeIn, timeOut }) => (
+                    <tr key={reg.id}>
+                      <td>
+                        <div className="font-semibold text-ink">{name}</div>
+                        <div className="text-xs text-[#4b6362] font-mono">{reg.reference_code}</div>
+                      </td>
+                      <td className="text-[#4b6362]">{reg.section}</td>
+                      <td className="text-xs text-[#4b6362] whitespace-nowrap">{timeIn}</td>
+                      <td className="text-xs text-[#4b6362] whitespace-nowrap">{timeOut}</td>
+                      <td><span className={clsx("badge whitespace-nowrap", STATUS_CLASS[attStatus] ?? "badge-gray")}>{label(attStatus)}</span></td>
+                      <td>
+                        <Link href={`/admin/participants/${reg.id}`} className="text-brand-600 text-sm font-semibold hover:underline">View</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
         {total > 25 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[#eef4f3] text-sm text-[#4b6362]">
             <span>Page {page} of {Math.ceil(total / 25)}</span>
             <div className="flex gap-2">
               {page > 1 && (
-                <Link href={`?event=${activeEventId}&q=${q}&section=${section}&status=${status}&page=${page - 1}`} className="btn-secondary btn-sm">← Prev</Link>
+                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page - 1) })}`} className="btn-secondary">← Prev</Link>
               )}
               {page < Math.ceil(total / 25) && (
-                <Link href={`?event=${activeEventId}&q=${q}&section=${section}&status=${status}&page=${page + 1}`} className="btn-primary btn-sm">Next →</Link>
+                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page + 1) })}`} className="btn-primary">Next →</Link>
               )}
             </div>
           </div>
         )}
-      </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { listPublishedEvents, countRegistrations, toPublicEvent } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase } from "@/lib/time";
 import Link from "next/link";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, ShieldCheck } from "lucide-react";
 import { Logo, EcgLine } from "@/components/Brand";
 import EventBrowser, { type EventItem } from "@/components/EventBrowser";
 
@@ -32,7 +32,7 @@ export default async function HomePage() {
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-[#dce7e5] pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Logo />
-          <Link href="/login" className="btn-secondary">Staff sign in</Link>
+          <Link href="/login" className="btn-secondary">Admin sign in</Link>
         </div>
       </header>
 
@@ -48,16 +48,19 @@ export default async function HomePage() {
             <p className="text-[15px] sm:text-lg leading-relaxed text-[#a7c9c6] max-w-lg">
               Pick an event, get your personal QR pass, and show it at the door.
             </p>
-            <div className="flex flex-wrap gap-3 mt-2">
+            <div className="grid grid-cols-1 min-[400px]:grid-cols-2 sm:flex sm:flex-wrap gap-3 mt-2">
               <Link href="#events" className="btn-primary btn-lg">
-                View events <ArrowDown className="w-5 h-5" />
+                View events <ArrowDown className="w-5 h-5" aria-hidden="true" />
               </Link>
-              {openCount > 0 && (
-                <Link href="/?filter=open#events" className="btn btn-lg border border-white/20 text-white hover:bg-white/10">
-                  {openCount} open for registration
-                </Link>
-              )}
+              <Link href="/me" className="btn btn-lg border border-white/25 text-white hover:bg-white/10">
+                <ShieldCheck className="w-5 h-5" aria-hidden="true" /> My attendance
+              </Link>
             </div>
+            {openCount > 0 && (
+              <Link href="/?filter=open#events" className="self-start text-sm font-semibold text-mint hover:underline underline-offset-4 min-h-11 inline-flex items-center">
+                {openCount} event{openCount === 1 ? "" : "s"} open for registration →
+              </Link>
+            )}
           </div>
           <EcgLine className="w-full h-auto opacity-90" />
         </div>

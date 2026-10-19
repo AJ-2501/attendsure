@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildRegistrationSchema, YEAR_LEVELS } from "@/lib/schemas";
@@ -36,9 +36,10 @@ function RegisterForm() {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [state, setState] = useState<State>("idle");
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({});
+  const [serverMessage, setServerMessage] = useState<string | null>(null);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [result, setResult] = useState<{ referenceCode: string; participantPath: string; eventName: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
-  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rf = selectedEvent?.required_fields ?? { department: true, year_level: true, email: false };
   const rules = selectedEvent
@@ -65,7 +66,11 @@ function RegisterForm() {
           if (preselect && r.data.some((e: EventSummary) => e.id === preselect)) setValue("eventId", preselect);
         }
       })
-      .catch(() => setState("error"));
+      .catch(() => {
+        setState("error");
+        setServerMessage("Couldn't load events. Check your connection and refresh the page.");
+      })
+      .finally(() => setLoadingEvents(false));
   }, [searchParams, setValue]);
 
   const watchEvent = watch("eventId");
@@ -77,21 +82,26 @@ function RegisterForm() {
   async function onSubmit(data: unknown) {
     setState("submitting");
     setServerErrors({});
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (json.ok) {
-      setResult(json.data);
-      setState("done");
-      redirectTimer.current = setTimeout(() => {
-        window.location.href = json.data.participantPath;
-      }, 3000);
-    } else {
+    setServerMessage(null);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setResult(json.data);
+        setState("done");
+        window.scrollTo({ top: 0 });
+      } else {
+        setState("error");
+        setServerErrors(json.error?.fields ?? {});
+        setServerMessage(json.error?.message ?? "Registration could not be completed. Please try again.");
+      }
+    } catch {
       setState("error");
-      setServerErrors(json.error?.fields ?? {});
+      setServerMessage("Can't reach the server. Check your connection and try again.");
     }
   }
 
@@ -103,18 +113,23 @@ function RegisterForm() {
             <CheckCircle className="w-8 h-8 text-success-600" />
           </div>
           <h1 className="text-2xl font-bold mb-2">You&apos;re registered!</h1>
-          <p className="text-slate-500 mb-4">
+          <p className="text-[#4b6362] mb-4">
             You&apos;ve been registered for <strong>{result.eventName}</strong>.
           </p>
           <div className="bg-brand-50 rounded-xl p-4 mb-6 font-mono text-lg font-semibold text-brand-700 tracking-widest">
             {result.referenceCode}
           </div>
-          <p className="text-sm text-slate-500 mb-6">
-            Redirecting to your QR codes in 3 seconds…
+          <p className="text-sm text-[#4b6362] mb-6">
+            Save this reference code. You&apos;ll need it to create your student account.
           </p>
-          <a href={result.participantPath} className="btn-primary btn-lg w-full">
-            Open my QR pass
-          </a>
+          <div className="flex flex-col gap-3">
+            <a href={result.participantPath} className="btn-primary btn-lg w-full">
+              Open my QR pass
+            </a>
+            <Link href="/student/signup" className="btn-secondary btn-lg w-full">
+              Create account to track attendance
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -147,7 +162,7 @@ function RegisterForm() {
             <label className="label" htmlFor="eventId">Event *</label>
             <div className="relative">
               <select id="eventId" {...register("eventId")} className="input appearance-none pr-9">
-                <option value="">Select an event…</option>
+                <option value="">{loadingEvents ? "Loading events…" : events.length ? "Select an event…" : "No events are open for registration"}</option>
                 {events.map((e) => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
@@ -171,7 +186,10 @@ function RegisterForm() {
           {/* Student ID */}
           <div>
             <label className="label" htmlFor="studentId">Student ID *</label>
-            <input id="studentId" {...register("studentId")} placeholder={selectedEvent?.student_id_hint ?? "Enter your student ID"} className="input font-mono" autoComplete="off" inputMode="numeric" autoCapitalize="characters" />
+            <input id="studentId" {...register("studentId")} placeholder="2021001955" aria-describedby="studentId-hint" aria-invalid={errors.studentId || serverErrors.studentId ? true : undefined} className="input font-mono" autoComplete="off" inputMode="numeric" maxLength={32} spellCheck={false} />
+            {!(errors.studentId || serverErrors.studentId) && (
+              <p id="studentId-hint" className="mt-1 text-xs text-[#4b6362]">{selectedEvent?.student_id_hint || "Format: 2021001955 (10 digits, no dash)"}</p>
+            )}
             {(errors.studentId || serverErrors.studentId) && (
               <p className="field-error">{errors.studentId?.message ?? serverErrors.studentId?.[0]}</p>
             )}
@@ -241,8 +259,8 @@ function RegisterForm() {
           {errors.consent && <p className="field-error -mt-3">{errors.consent.message}</p>}
 
           {/* General error */}
-          {state === "error" && !Object.keys(serverErrors).length && (
-            <div className="scan-rejected text-sm">Registration could not be completed. Please check your details and try again.</div>
+          {state === "error" && serverMessage && (
+            <div role="alert" className="scan-rejected text-sm font-semibold">{serverMessage}</div>
           )}
 
           <div className="sticky bottom-0 -mx-5 sm:mx-0 -mb-5 sm:mb-0 px-5 sm:px-0 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-0 bg-white border-t sm:border-0 border-[#dce7e5] rounded-b-[1.25rem]">

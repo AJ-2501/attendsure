@@ -53,7 +53,15 @@ export async function requirePermission(permission: Permission): Promise<Session
 export async function requirePagePermission(permission: Permission): Promise<SessionProfile> {
   const p = await getSessionProfile();
   if (!p) redirect("/login");
-  if (!isStaffRole(p.role)) redirect("/login?error=not_staff");
+  if (!isStaffRole(p.role)) redirect("/me");
   if (!can(p.role, permission)) redirect("/admin?error=forbidden");
+  return p;
+}
+
+/** For student pages: signed-in students only; staff are sent to the admin dashboard. */
+export async function requireStudentPage(): Promise<SessionProfile> {
+  const p = await getSessionProfile();
+  if (!p) redirect("/student/login");
+  if (isStaffRole(p.role)) redirect("/admin");
   return p;
 }

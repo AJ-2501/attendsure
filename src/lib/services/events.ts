@@ -184,3 +184,17 @@ export async function countRegistrations(eventIds: string[]): Promise<Record<str
   );
   return Object.fromEntries(entries);
 }
+
+export type DeleteEventResult =
+  | { ok: true; registrations: number; attended: number }
+  | { ok: false; code: "NOT_FOUND" | "REASON_REQUIRED" | "NOT_MIGRATED" | "ERROR" };
+
+/** Permanently delete an event with its registrations and attendance (audited in the database). */
+export async function deleteEvent(id: string, actorId: string, reason: string): Promise<DeleteEventResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, code: "NOT_FOUND" };
+  const { data, error } = await createAdminClient().rpc("delete_event", { p_event_id: id, p_actor: actorId, p_reason: reason } as never);
+  if (error) return { ok: false, code: /function .*delete_event|PGRST202/i.test(`${error.code} ${error.message}`) ? "NOT_MIGRATED" : "ERROR" };
+  const r = data as { ok: boolean; code?: string; registrations?: number; attended?: number };
+  if (!r.ok) return { ok: false, code: (r.code as "NOT_FOUND" | "REASON_REQUIRED") ?? "ERROR" };
+  return { ok: true, registrations: r.registrations ?? 0, attended: r.attended ?? 0 };
+}

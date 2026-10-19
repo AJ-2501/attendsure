@@ -9,6 +9,8 @@ export interface RateLimitRule {
 
 export const RATE_LIMITS = {
   register: { windowSeconds: 600, max: 10 }, // per IP
+  studentSignup: { windowSeconds: 900, max: 5 }, // per IP (guards reference-code guessing)
+  studentPass: { windowSeconds: 300, max: 10 }, // per student account
   participantView: { windowSeconds: 60, max: 60 }, // per IP
   timeOutIssue: { windowSeconds: 60, max: 6 }, // per registration
   scan: { windowSeconds: 60, max: 120 }, // per staff member

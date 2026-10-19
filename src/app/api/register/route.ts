@@ -4,11 +4,14 @@ import { ok, fail, handle, clientIp } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { registerParticipant } from "@/lib/services/registrations";
 import { listPublishedEvents } from "@/lib/services/events";
+import { effectiveStatus, registrationPhase } from "@/lib/time";
 
 export const runtime = "nodejs";
 
 export const GET = handle("register", async () => {
-  const events = await listPublishedEvents();
+  const now = new Date();
+  // Only events that are accepting registrations right now (same rule the database enforces).
+  const events = (await listPublishedEvents()).filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
   // Only return fields needed for the form (no sensitive internal state).
   const safe = events.map((e) => ({
     id: e.id,

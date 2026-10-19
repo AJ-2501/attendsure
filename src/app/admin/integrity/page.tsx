@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import EventPicker from "../EventPicker";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listAllEvents } from "@/lib/services/events";
 import { getIntegrityFlags } from "@/lib/services/attendance";
@@ -16,16 +17,11 @@ export default async function IntegrityPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Integrity Monitor</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-ink">Integrity Monitor</h1>
         <p className="text-slate-500 text-sm">Rule-based flags. Not evidence of wrongdoing.</p>
       </div>
 
-      <form className="flex gap-3" method="GET">
-        <select name="event" defaultValue={eventId} className="input max-w-xs">
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
-        <button type="submit" className="btn-primary btn-sm">View</button>
-      </form>
+      <EventPicker events={events} value={eventId} />
 
       {flags.length === 0 ? (
         <div className="card p-12 text-center text-slate-400">

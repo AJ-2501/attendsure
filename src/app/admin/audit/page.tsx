@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import EventPicker from "../EventPicker";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listAllEvents } from "@/lib/services/events";
 import { getAuditLog } from "@/lib/services/attendance";
@@ -20,16 +21,11 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Audit Log</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-ink">Audit Log</h1>
         <p className="text-slate-500 text-sm">{total.toLocaleString()} records</p>
       </div>
 
-      <form className="flex gap-3" method="GET">
-        <select name="event" defaultValue={eventId} className="input max-w-xs">
-          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
-        <button type="submit" className="btn-primary btn-sm">View</button>
-      </form>
+      <EventPicker events={events} value={eventId} />
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">

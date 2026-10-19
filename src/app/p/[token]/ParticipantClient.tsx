@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatInZone, timeOutWindow } from "@/lib/time";
 import { ACTION_LABEL } from "@/lib/messages";
-import { QrCode, Clock, CheckCircle, CalendarDays, MapPin, Loader2, LogIn, LogOut } from "lucide-react";
+import { QrCode, Clock, CheckCircle, CalendarDays, MapPin, Loader2, LogIn, LogOut, ChevronLeft } from "lucide-react";
+import Link from "next/link";
 import { clsx } from "clsx";
 import { Logo } from "@/components/Brand";
 
@@ -109,7 +110,7 @@ function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
   );
 }
 
-export default function ParticipantClient({ data, accessToken }: { data: ParticipantData; accessToken: string }) {
+export default function ParticipantClient({ data, accessToken, back }: { data: ParticipantData; accessToken: string; back: { href: string; label: string } }) {
   const [timeOutToken, setTimeOutToken] = useState<string | null>(null);
   const [timeOutExpiry, setTimeOutExpiry] = useState<string | null>(null);
   const [issuingTimeOut, setIssuingTimeOut] = useState(false);
@@ -146,10 +147,13 @@ export default function ParticipantClient({ data, accessToken }: { data: Partici
   return (
     <div className="min-h-dvh bg-ink">
       <header className="max-w-xl mx-auto px-5 pt-[calc(0.875rem+env(safe-area-inset-top))] pb-5 text-white">
-        <div className="flex items-center justify-between h-11">
-          <Logo size="sm" tone="dark" />
+        <div className="flex items-center justify-between gap-2 h-11 -ml-2">
+          <Link href={back.href} className="min-h-11 pl-1 pr-3 rounded-xl inline-flex items-center gap-1 text-sm font-semibold hover:bg-white/10">
+            <ChevronLeft className="w-5 h-5" aria-hidden="true" /> {back.label}
+          </Link>
           <span className="font-mono text-[13px] text-[#a7c9c6]">{data.referenceCode}</span>
         </div>
+        <Logo size="sm" tone="dark" className="mt-2" />
         <p className="mt-3 text-[13px] text-[#a7c9c6]">Your pass for</p>
         <h1 className="text-[22px] font-extrabold leading-tight">{ev.name}</h1>
         <p className="mt-1 text-sm text-[#a7c9c6] flex items-center gap-1.5">
