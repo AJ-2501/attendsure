@@ -25,7 +25,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${jakarta.variable} ${jetbrains.variable}`}>
-      <body>{children}</body>
+      {/* Extensions (password managers, Grammarly) inject attributes on <body>; ignore only those. */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

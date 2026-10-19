@@ -28,8 +28,14 @@ const MODES: { id: Mode; label: string }[] = [
   { id: "time_out", label: "Time out" },
 ];
 
-/** Minimal shape of @zxing/browser's IScannerControls. */
+/** Minimal shape of @zxing/browser's IScannerControls (also used for the native detector loop). */
 type ScannerControls = { stop: () => void };
+
+/** The Shape Detection API's BarcodeDetector (not yet in TypeScript's DOM lib). */
+type NativeDetectorCtor = {
+  new (opts: { formats: string[] }): { detect: (src: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+  getSupportedFormats: () => Promise<string[]>;
+};
 
 function cameraErrorMessage(err: unknown): string {
   if (typeof window !== "undefined" && !window.isSecureContext) {
@@ -150,18 +156,49 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
       return;
     }
     setStarting(true);
+    const constraints: MediaStreamConstraints = {
+      video: { facingMode: { ideal: cam }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    };
     try {
-      const { BrowserQRCodeReader } = await import("@zxing/browser");
-      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 150 });
-      if (!videoRef.current) return;
-      // decodeFromConstraints opens the camera, attaches it to the <video> and keeps decoding.
-      controlsRef.current = await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: cam }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
-        videoRef.current,
-        (res) => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // Prefer the platform's native QR detector (fast and robust on Android/Chrome); fall back to ZXing.
+      const Native = (window as unknown as { BarcodeDetector?: NativeDetectorCtor }).BarcodeDetector;
+      const nativeQr = Native ? (await Native.getSupportedFormats().catch(() => [] as string[])).includes("qr_code") : false;
+      if (Native && nativeQr) {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        const detector = new Native({ formats: ["qr_code"] });
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const tick = async () => {
+          if (stopped) return;
+          if (video.readyState >= 2) {
+            try {
+              const codes = await detector.detect(video);
+              if (codes[0]?.rawValue) void submitToken(codes[0].rawValue);
+            } catch {}
+          }
+          timer = setTimeout(tick, 120);
+        };
+        void tick();
+        controlsRef.current = {
+          stop: () => {
+            stopped = true;
+            clearTimeout(timer);
+          },
+        };
+      } else {
+        const { BrowserQRCodeReader } = await import("@zxing/browser");
+        const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 120 });
+        // decodeFromConstraints opens the camera, attaches it to the <video> and keeps decoding.
+        controlsRef.current = await reader.decodeFromConstraints(constraints, video, (res) => {
           if (res) void submitToken(res.getText());
-        },
-      );
+        });
+      }
       setScanning(true);
     } catch (err) {
       setCameraError(cameraErrorMessage(err));

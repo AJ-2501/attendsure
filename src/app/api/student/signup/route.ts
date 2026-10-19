@@ -22,7 +22,7 @@ export const POST = handle("student-signup", async (req: NextRequest) => {
       case "EMAIL_TAKEN":
         return fail(409, result.code, "That email already has an account. Sign in instead.", { email: ["Already has an account — sign in instead"] });
       case "NOT_MIGRATED":
-        return fail(503, result.code, "Student sign-up isn't enabled yet: run database migration 20261019000005.");
+        return fail(503, result.code, "Student sign-up isn't enabled yet. An administrator needs to run supabase/APPLY_ATTENDSURE_UPDATES.sql in the Supabase SQL Editor.");
       default:
         return fail(500, result.code, "Couldn't create your account. Please try again.");
     }

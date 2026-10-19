@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 /**
  * Cache Components is intentionally disabled: almost every SmartAttend page renders
@@ -15,7 +16,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Pin the project root so the dev server only watches this folder (not all of C:\).
+  outputFileTracingRoot: path.join(__dirname),
   turbopack: {
+    root: path.join(__dirname),
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

@@ -34,7 +34,13 @@ export function handle<A extends unknown[]>(name: string, fn: (...args: A) => Pr
         log.error("crypto_config_error", { route: name, message: err.message });
         return fail(503, "SERVICE_MISCONFIGURED", "The service is temporarily unavailable.");
       }
-      log.error("unhandled_error", { route: name, error: err instanceof Error ? err.name : "unknown" });
+      log.error("unhandled_error", {
+        route: name,
+        error: err instanceof Error ? err.name : "unknown",
+        // Message + top stack frames make failures diagnosable; never includes request bodies.
+        message: err instanceof Error ? err.message.slice(0, 300) : undefined,
+        stack: err instanceof Error ? err.stack?.split(/\r?\n/).slice(1, 4).map((l) => l.trim()).join(" | ") : undefined,
+      });
       return fail(500, "INTERNAL_ERROR", "Something went wrong. Please try again.");
     }
   };

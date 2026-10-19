@@ -27,7 +27,8 @@ function renderAndDecode(token: string, scale = 6): string {
 
 describe("QR pass → scanner round trip", () => {
   it("a generated pass decodes to the exact token and hashes to the stored credential", () => {
-    for (let i = 0; i < 5; i++) {
+    // newQrCredential() re-rolls unreadable ids, so every issued pass must decode.
+    for (let i = 0; i < 150; i++) {
       const { token, tokenHash } = newQrCredential();
       const decoded = renderAndDecode(token);
       expect(decoded).toBe(token);

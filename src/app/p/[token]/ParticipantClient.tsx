@@ -61,7 +61,7 @@ function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
 
   useEffect(() => {
     import("qrcode").then((QRCode) => {
-      QRCode.toDataURL(token, { width: 480, margin: 1, color: { dark: "#0b2e2f", light: "#ffffff" } })
+      QRCode.toDataURL(token, { width: 480, margin: 4, errorCorrectionLevel: "M", color: { dark: "#0b2e2f", light: "#ffffff" } })
         .then(setDataUrl);
     });
   }, [token]);

@@ -12,6 +12,7 @@
 import "server-only";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { CryptoConfigError } from "./tdes";
+import { isReliablyScannable } from "./qr-check";
 
 function secret(name: string): Buffer {
   const raw = process.env[name];
@@ -38,10 +39,17 @@ export function deriveQrToken(credentialId: string): string {
   return QR_PREFIX + mac;
 }
 
+/**
+ * A fresh credential whose QR is proven to decode (see qr-check.ts). Ids are random, so
+ * re-rolling the rare unreadable one costs nothing and guarantees every pass scans.
+ */
 export function newQrCredential() {
-  const id = randomUUID();
-  const token = deriveQrToken(id);
-  return { id, token, tokenHash: sha256Hex(token) };
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const id = randomUUID();
+    const token = deriveQrToken(id);
+    if (isReliablyScannable(token) || attempt === 19) return { id, token, tokenHash: sha256Hex(token) };
+  }
+  throw new Error("unreachable");
 }
 
 /** Accepts scanned text; returns the hash to look up or null if malformed. */

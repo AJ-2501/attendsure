@@ -74,7 +74,7 @@ export function QrImage({ token, label }: { token: string; label: string }) {
   useEffect(() => {
     let alive = true;
     import("qrcode").then((QR) =>
-      QR.toDataURL(token, { width: 560, margin: 1, errorCorrectionLevel: "M", color: { dark: "#0b2e2f", light: "#ffffff" } }).then((url) => alive && setSrc(url)),
+      QR.toDataURL(token, { width: 560, margin: 4, errorCorrectionLevel: "M", color: { dark: "#0b2e2f", light: "#ffffff" } }).then((url) => alive && setSrc(url)),
     );
     return () => {
       alive = false;
@@ -99,8 +99,9 @@ export function QrImage({ token, label }: { token: string; label: string }) {
   );
 }
 
+/** Milliseconds until `until`; null until mounted so server and client render the same HTML. */
 function useCountdown(until: string | null) {
-  const [left, setLeft] = useState(() => (until ? Date.parse(until) - Date.now() : 0));
+  const [left, setLeft] = useState<number | null>(null);
   useEffect(() => {
     if (!until) return;
     const tick = () => setLeft(Date.parse(until) - Date.now());
@@ -118,7 +119,7 @@ export function TimeOutPass({ registrationId, initial }: { registrationId: strin
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const left = useCountdown(pass?.expiresAt ?? null);
-  const expired = pass !== null && left <= 0;
+  const expired = pass !== null && left !== null && left <= 0;
 
   function generate() {
     setError(null);
@@ -132,13 +133,14 @@ export function TimeOutPass({ registrationId, initial }: { registrationId: strin
   }
 
   if (pass && !expired) {
-    const m = Math.floor(left / 60000);
-    const s = Math.floor((left % 60000) / 1000);
+    const ms = left ?? 0;
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
     return (
       <div className="flex flex-col items-center gap-2">
         <QrImage token={pass.token} label="Time out" />
         <p className="text-sm font-semibold text-ink flex items-center gap-1.5" aria-live="polite">
-          <Clock className="w-4 h-4 text-brand-600" aria-hidden="true" /> Valid for {m}:{String(s).padStart(2, "0")}
+          <Clock className="w-4 h-4 text-brand-600" aria-hidden="true" /> {left === null ? "Valid for a few minutes" : `Valid for ${m}:${String(s).padStart(2, "0")}`}
         </p>
       </div>
     );
