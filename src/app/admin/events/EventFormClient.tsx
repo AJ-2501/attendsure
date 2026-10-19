@@ -126,7 +126,7 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       allowTimeOut: true,
       requireTimeOut: true,
       studentIdPattern: "^[0-9]{10}$",
-      studentIdHint: "Format: 2021001955 (10 digits, no dash)",
+      studentIdHint: "e.g. 2020001234 (10 digits, no dash)",
       requiredFields: { department: true, year_level: true, email: false },
       ...defaultValues,
     },
@@ -248,7 +248,7 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       <Section title="Registration form" description="What students must enter when registering.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <F id="studentIdHint" label="Student ID hint" error={errors.studentIdHint?.message} hint="Shown under the Student ID field.">
-            <input id="studentIdHint" {...register("studentIdHint")} className="input" placeholder="Format: 2021001955 (10 digits, no dash)" />
+            <input id="studentIdHint" {...register("studentIdHint")} className="input" placeholder="e.g. 2020001234 (10 digits, no dash)" />
           </F>
           <F id="studentIdPattern" label="Student ID pattern" required error={errors.studentIdPattern?.message} hint="Advanced: regular expression. ^[0-9]{10}$ = 10 digits.">
             <input id="studentIdPattern" {...register("studentIdPattern")} className="input font-mono" spellCheck={false} autoCapitalize="none" />

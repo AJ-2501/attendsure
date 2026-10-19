@@ -253,3 +253,47 @@ export type StudentSignupInput = z.input<typeof studentSignupSchema>;
 
 /** Email + password used when a student creates their account while registering. */
 export const accountSchema = studentSignupSchema.pick({ email: true, password: true });
+
+/** 10-digit student ID, e.g. 2020001234. Spaces and dashes are ignored. */
+export const STUDENT_ID_EXAMPLE = "2020001234";
+export const studentIdField = z
+  .string()
+  .transform((s) => s.normalize("NFKC").replace(/[\s-]+/g, ""))
+  .pipe(
+    z
+      .string()
+      .min(1, "Enter your student ID")
+      .regex(/^\d+$/, `Use digits only, e.g. ${STUDENT_ID_EXAMPLE}`)
+      .length(10, `Student ID must be 10 digits, e.g. ${STUDENT_ID_EXAMPLE}`),
+  );
+
+/** One-time student sign-up: personal details + credentials, independent of any event. */
+export const studentProfileSchema = z.object({
+  fullName: z
+    .string()
+    .transform(normalizeName)
+    .pipe(
+      z
+        .string()
+        .min(3, "Enter your full name")
+        .max(120, "Name is too long")
+        .regex(/\S\s+\S/, "Enter your first and last name")
+        .regex(/^[\p{L}][\p{L}\s.'’-]*$/u, "Use letters, spaces, periods, hyphens and apostrophes only"),
+    ),
+  studentId: studentIdField,
+  section: z
+    .string()
+    .transform(normalizeSection)
+    .pipe(z.string().min(1, "Enter your section, e.g. BSN 2-B").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
+  yearLevel: z.enum(YEAR_LEVELS, { message: "Select your year level" }),
+  department: z.string().transform((s) => s.replace(/\s+/g, " ").trim()).pipe(z.string().min(2, "Enter your college or department").max(120)),
+  email: z.string().trim().toLowerCase().email("Enter a valid email, e.g. you@nursing.edu.ph").max(254),
+  password: z
+    .string()
+    .min(8, "Use at least 8 characters")
+    .max(72, "Use at most 72 characters")
+    .regex(/[A-Za-z]/, "Include at least one letter")
+    .regex(/[0-9]/, "Include at least one number"),
+  consent: z.literal(true, { message: "You must agree to the data privacy notice" }),
+});
+export type StudentProfileInput = z.input<typeof studentProfileSchema>;

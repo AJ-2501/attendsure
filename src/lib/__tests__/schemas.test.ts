@@ -3,7 +3,7 @@ import { buildRegistrationSchema } from "@/lib/schemas";
 
 const rules = {
   studentIdPattern: "^[0-9]{10}$",
-  studentIdHint: "Format: 2021001955",
+  studentIdHint: "Format: 2020001234",
   requiredFields: { department: true, year_level: true, email: false },
 };
 
@@ -13,7 +13,7 @@ describe("Registration schema", () => {
   const valid = {
     eventId: "3f1c2b4a-8d6e-4f7a-9b0c-1d2e3f4a5b6c",
     fullName: "Juan Dela Cruz",
-    studentId: "2021001955",
+    studentId: "2020001234",
     section: "BSCS 3-A",
     department: "CCS",
     yearLevel: "3rd Year",

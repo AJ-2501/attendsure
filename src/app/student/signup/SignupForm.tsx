@@ -4,17 +4,18 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
-import { studentSignupSchema } from "@/lib/schemas";
+import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, ShieldCheck, UserRound } from "lucide-react";
+import { STUDENT_ID_EXAMPLE, studentProfileSchema, YEAR_LEVELS } from "@/lib/schemas";
+import { createClient } from "@/lib/supabase/client";
 
-const formSchema = studentSignupSchema
-  .extend({ confirmPassword: z.string() })
+const formSchema = studentProfileSchema
+  .extend({ confirmPassword: z.string().min(1, "Re-enter your password") })
   .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords don't match" });
 type FormValues = z.input<typeof formSchema>;
 
 function Field({ id, label, hint, error, children }: { id: string; label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label className="label" htmlFor={id}>{label}</label>
       {children}
       {error ? (
@@ -28,16 +29,22 @@ function Field({ id, label, hint, error, children }: { id: string; label: string
   );
 }
 
-export default function SignupForm() {
+export default function SignupForm({ event }: { event?: { id: string; name: string } | null }) {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"idle" | "signing-in">("idle");
   const {
     register,
     handleSubmit,
     setError,
+    setFocus,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(formSchema), mode: "onTouched" });
+  } = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    mode: "onTouched",
+    defaultValues: { department: "College of Nursing", consent: true },
+  });
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
@@ -45,52 +52,99 @@ export default function SignupForm() {
       const res = await fetch("/api/student/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, confirmPassword: undefined, eventId: event?.id }),
       });
       const json = await res.json();
-      if (json.ok) {
+      if (!json.ok) {
+        const fields = (json.error?.fields ?? {}) as Record<string, string[]>;
+        const names = Object.keys(fields);
+        for (const name of names) setError(name as keyof FormValues, { message: fields[name][0] });
+        if (names[0]) setFocus(names[0] as keyof FormValues);
+        setFormError(json.error?.message ?? "Couldn't create your account. Please try again.");
+        return;
+      }
+      setPhase("signing-in");
+      const { error } = await createClient().auth.signInWithPassword({ email: String(values.email).trim(), password: String(values.password) });
+      if (error) {
         router.push("/student/login?created=1");
         return;
       }
-      const fields = (json.error?.fields ?? {}) as Record<string, string[]>;
-      for (const [name, msgs] of Object.entries(fields)) setError(name as keyof FormValues, { message: msgs[0] });
-      if (json.error?.code === "INVALID_PROOF") {
-        setError("referenceCode", { message: "Doesn't match this student ID" });
-      }
-      if (json.error?.code === "EMAIL_TAKEN") setError("email", { message: "Already in use" });
-      setFormError(json.error?.message ?? "Couldn't create your account. Please try again.");
+      const reg = json.data.registration as { ok: boolean; referenceCode?: string; message?: string } | null;
+      const qs = reg?.ok ? `registered=${encodeURIComponent(reg.referenceCode!)}` : reg ? `regError=${encodeURIComponent(reg.message ?? "")}` : "welcome=1";
+      router.replace(`/me?${qs}`);
+      router.refresh();
     } catch {
       setFormError("Can't reach the server. Check your connection and try again.");
     }
   }
 
-  const aria = (name: keyof FormValues) => ({
-    "aria-invalid": errors[name] ? true : undefined,
-    "aria-describedby": `${name}-msg`,
-  });
+  const aria = (name: keyof FormValues) => ({ "aria-invalid": errors[name] ? true : undefined, "aria-describedby": `${name}-msg` });
+  const busy = isSubmitting || phase === "signing-in";
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-      <Field id="studentId" label="Student ID" hint="The ID you registered with, e.g. 2021001955" error={errors.studentId?.message}>
-        <input id="studentId" {...register("studentId")} {...aria("studentId")} inputMode="numeric" autoComplete="off" maxLength={32} className="input font-mono bg-[#f3f7f6]" placeholder="2021001955" />
-      </Field>
-      <Field id="referenceCode" label="Reference code" hint="Shown after you registered and on your QR pass, e.g. SA-K7QM-4XPD" error={errors.referenceCode?.message}>
-        <input id="referenceCode" {...register("referenceCode")} {...aria("referenceCode")} autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={12} className="input font-mono uppercase bg-[#f3f7f6]" placeholder="SA-XXXX-XXXX" />
-      </Field>
-      <Field id="email" label="Email address" error={errors.email?.message}>
-        <input id="email" type="email" {...register("email")} {...aria("email")} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} className="input bg-[#f3f7f6]" placeholder="you@nursing.edu.ph" />
-      </Field>
-      <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
-        <div className="relative">
-          <input id="password" type={show ? "text" : "password"} {...register("password")} {...aria("password")} autoComplete="new-password" className="input bg-[#f3f7f6] pr-14" />
-          <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide passwords" : "Show passwords"} aria-pressed={show} className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
-            {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </button>
+    <form onSubmit={handleSubmit(onSubmit, (errs) => setFocus(Object.keys(errs)[0] as keyof FormValues))} className="flex flex-col gap-5" noValidate>
+      {event && (
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-3.5 text-sm text-[#23403f]">
+          You&apos;ll also be registered for <strong>{event.name}</strong> and get its QR pass right away.
         </div>
-      </Field>
-      <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword?.message}>
-        <input id="confirmPassword" type={show ? "text" : "password"} {...register("confirmPassword")} {...aria("confirmPassword")} autoComplete="new-password" className="input bg-[#f3f7f6]" />
-      </Field>
+      )}
+
+      <fieldset className="flex flex-col gap-4">
+        <legend className="font-bold text-ink flex items-center gap-2 mb-1">
+          <UserRound className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your details
+        </legend>
+        <Field id="fullName" label="Full name" hint="e.g. Maria Clara Santos" error={errors.fullName?.message}>
+          <input id="fullName" {...register("fullName")} {...aria("fullName")} autoComplete="name" className="input bg-[#f3f7f6]" placeholder="First and last name" />
+        </Field>
+        <Field id="studentId" label="Student ID" hint={`10 digits, no dash — e.g. ${STUDENT_ID_EXAMPLE}`} error={errors.studentId?.message}>
+          <input id="studentId" {...register("studentId")} {...aria("studentId")} inputMode="numeric" autoComplete="off" maxLength={12} spellCheck={false} className="input font-mono bg-[#f3f7f6]" placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} />
+        </Field>
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
+          <Field id="section" label="Section" hint="e.g. BSN 2-B" error={errors.section?.message}>
+            <input id="section" {...register("section")} {...aria("section")} autoCapitalize="characters" className="input bg-[#f3f7f6]" placeholder="e.g. BSN 2-B" />
+          </Field>
+          <Field id="yearLevel" label="Year level" error={errors.yearLevel?.message}>
+            <div className="relative">
+              <select id="yearLevel" {...register("yearLevel")} {...aria("yearLevel")} className="input appearance-none pr-9 bg-[#f3f7f6]" defaultValue="">
+                <option value="" disabled>Select…</option>
+                {YEAR_LEVELS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#4b6362] pointer-events-none" aria-hidden="true" />
+            </div>
+          </Field>
+        </div>
+        <Field id="department" label="College / department" error={errors.department?.message}>
+          <input id="department" {...register("department")} {...aria("department")} className="input bg-[#f3f7f6]" />
+        </Field>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 pt-4 border-t border-[#eef4f3]">
+        <legend className="font-bold text-ink flex items-center gap-2 mb-1">
+          <ShieldCheck className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your account
+        </legend>
+        <Field id="email" label="Email address" hint="e.g. you@nursing.edu.ph" error={errors.email?.message}>
+          <input id="email" type="email" {...register("email")} {...aria("email")} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} className="input bg-[#f3f7f6]" placeholder="you@nursing.edu.ph" />
+        </Field>
+        <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
+          <div className="relative">
+            <input id="password" type={show ? "text" : "password"} {...register("password")} {...aria("password")} autoComplete="new-password" className="input bg-[#f3f7f6] pr-14" />
+            <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide passwords" : "Show passwords"} aria-pressed={show} className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
+              {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+        </Field>
+        <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword?.message}>
+          <input id="confirmPassword" type={show ? "text" : "password"} {...register("confirmPassword")} {...aria("confirmPassword")} autoComplete="new-password" className="input bg-[#f3f7f6]" />
+        </Field>
+      </fieldset>
+
+      <div>
+        <label className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-[#f3f7f6] p-3.5">
+          <input type="checkbox" {...register("consent")} className="mt-0.5 w-[22px] h-[22px] shrink-0 accent-brand-600" />
+          <span className="text-[13px] leading-relaxed text-[#23403f]">I agree that my name and student ID are stored encrypted and used only for attendance, per the Data Privacy Act of 2012.</span>
+        </label>
+        {errors.consent?.message && <p className="field-error" role="alert">{errors.consent.message}</p>}
+      </div>
 
       {formError && (
         <div role="alert" className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 rounded-xl px-3 py-2.5">
@@ -99,8 +153,8 @@ export default function SignupForm() {
         </div>
       )}
 
-      <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg w-full mt-1">
-        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</> : "Create account"}
+      <button type="submit" disabled={busy} className="btn-primary btn-lg w-full">
+        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening your dashboard…</> : "Create account"}
       </button>
     </form>
   );

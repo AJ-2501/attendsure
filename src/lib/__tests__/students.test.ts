@@ -4,7 +4,7 @@ import { formatTimeRange, registrationPhase } from "@/lib/time";
 
 const tenDigit = buildRegistrationSchema({
   studentIdPattern: "^[0-9]{10}$",
-  studentIdHint: "Format: 2021001955",
+  studentIdHint: "Format: 2020001234",
   requiredFields: { department: false, year_level: false, email: false },
 });
 const base = {
@@ -15,21 +15,21 @@ const base = {
 };
 
 describe("10-digit student ID format", () => {
-  it("accepts 2021001955", () => {
-    expect(tenDigit.safeParse({ ...base, studentId: "2021001955" }).success).toBe(true);
+  it("accepts 2020001234", () => {
+    expect(tenDigit.safeParse({ ...base, studentId: "2020001234" }).success).toBe(true);
   });
   it("tolerates surrounding spaces", () => {
     expect(tenDigit.safeParse({ ...base, studentId: " 2021 001955 " }).success).toBe(true);
   });
-  it.each(["2021-00195", "2021-001955", "202100195", "20210019555", "20210O1955"])("rejects %s", (id) => {
+  it.each(["2021-00195", "2021-001955", "202100195", "20200012345", "20210O1955"])("rejects %s", (id) => {
     const r = tenDigit.safeParse({ ...base, studentId: id });
     expect(r.success).toBe(false);
-    expect(JSON.stringify(r.error?.issues)).toMatch(/2021001955/);
+    expect(JSON.stringify(r.error?.issues)).toMatch(/2020001234/);
   });
 });
 
 describe("Student signup schema", () => {
-  const valid = { email: "Maria@Nursing.edu.ph ", password: "nurse2024", studentId: "2021001955", referenceCode: "sa-k7qm-4xpd" };
+  const valid = { email: "Maria@Nursing.edu.ph ", password: "nurse2024", studentId: "2020001234", referenceCode: "sa-k7qm-4xpd" };
 
   it("normalizes email and reference code", () => {
     const r = studentSignupSchema.safeParse(valid);
@@ -60,5 +60,49 @@ describe("time helpers", () => {
     expect(registrationPhase(e, new Date("2026-09-30T00:00:00Z"))).toBe("before");
     expect(registrationPhase(e, new Date("2026-10-05T00:00:00Z"))).toBe("open");
     expect(registrationPhase(e, new Date("2026-10-10T00:00:00Z"))).toBe("after");
+  });
+});
+
+describe("Student profile sign-up (event-independent)", () => {
+  const valid = {
+    fullName: "maria  clara santos",
+    studentId: "2020001234",
+    section: "bsn 2-b",
+    yearLevel: "2nd Year",
+    department: "College of Nursing",
+    email: "Maria@Nursing.edu.ph",
+    password: "nurse2024",
+    consent: true,
+  };
+
+  it("accepts e.g. 2020001234 and normalizes name, section and email", async () => {
+    const { studentProfileSchema } = await import("@/lib/schemas");
+    const r = studentProfileSchema.safeParse(valid);
+    expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ fullName: "Maria Clara Santos", section: "BSN 2-B", email: "maria@nursing.edu.ph", studentId: "2020001234" });
+  });
+
+  it.each([["2020-001234"], [" 2020 001234 "]])("accepts %s by ignoring spaces and dashes", async (id) => {
+    const { studentProfileSchema } = await import("@/lib/schemas");
+    expect(studentProfileSchema.safeParse({ ...valid, studentId: id }).data?.studentId).toBe("2020001234");
+  });
+
+  it.each([
+    ["too short", "202000123", /10 digits/],
+    ["too long", "20200012345", /10 digits/],
+    ["letters", "2020OO1234", /digits only/],
+    ["empty", "", /Enter your student ID/],
+  ])("rejects a student ID that is %s with a helpful message", async (_l, id, msg) => {
+    const { studentProfileSchema } = await import("@/lib/schemas");
+    const r = studentProfileSchema.safeParse({ ...valid, studentId: id });
+    expect(r.success).toBe(false);
+    expect(r.error?.flatten().fieldErrors.studentId?.[0]).toMatch(msg);
+  });
+
+  it("requires year level, consent and a first + last name", async () => {
+    const { studentProfileSchema } = await import("@/lib/schemas");
+    const r = studentProfileSchema.safeParse({ ...valid, yearLevel: "", consent: false, fullName: "Maria" });
+    const f = r.error?.flatten().fieldErrors ?? {};
+    expect(Object.keys(f).sort()).toEqual(["consent", "fullName", "yearLevel"]);
   });
 });

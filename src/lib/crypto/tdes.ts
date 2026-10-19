@@ -124,4 +124,6 @@ export const FIELD = {
   name: "registrations.participant_name",
   studentId: "registrations.student_id",
   email: "registrations.email",
+  profileName: "profiles.full_name",
+  profileStudentId: "profiles.student_id",
 } as const;

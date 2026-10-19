@@ -269,6 +269,9 @@ export default function ParticipantClient({ data, accessToken, back }: { data: P
         <p className="text-center text-[13px] text-[#4b6362] pb-2">
           Bookmark this page — it is your private link.
         </p>
+        <Link href={back.href} className="btn-secondary btn-lg w-full">
+          <ChevronLeft className="w-5 h-5" aria-hidden="true" /> Back to {back.label.toLowerCase()}
+        </Link>
       </div>
       </div>
     </div>

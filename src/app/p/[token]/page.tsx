@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { getParticipantByAccessToken } from "@/lib/services/registrations";
 import { getTokenForCredential } from "@/lib/services/credentials";
 import ParticipantClient from "./ParticipantClient";
+import { getSessionProfile } from "@/lib/auth/session";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -64,6 +67,8 @@ export default async function ParticipantPage({ params, searchParams }: Props) {
     timeInToken,
   };
 
-  const back = from === "me" ? { href: "/me", label: "My attendance" } : { href: "/#events", label: "Events" };
+  // Signed-in students always get a way back to their dashboard.
+  const session = await getSessionProfile();
+  const back = from === "me" || session?.role === "student" ? { href: "/me", label: "My dashboard" } : { href: "/#events", label: "Events" };
   return <ParticipantClient data={data} accessToken={token} back={back} />;
 }

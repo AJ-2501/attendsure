@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireStudentPage } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { claimRegistration, issueTimeOutPass, reissuePassLink } from "@/lib/services/students";
+import { claimRegistration, issueTimeOutPass, registerFromProfile, reissuePassLink, updateStudentProfile } from "@/lib/services/students";
 import { message } from "@/lib/messages";
 
 export async function openPass(formData: FormData) {
@@ -48,4 +48,34 @@ export async function claimAction(_prev: ClaimState, formData: FormData): Promis
   }
   revalidatePath("/me");
   return { ok: true, message: "Registration added to your dashboard." };
+}
+
+/** One tap: register for an event with the saved profile, then show the new QR pass. */
+export async function quickRegisterAction(formData: FormData) {
+  const student = await requireStudentPage();
+  const eventId = String(formData.get("eventId") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(eventId)) redirect("/me?regError=" + encodeURIComponent("That event couldn't be found."));
+  if (!(await checkRateLimit("register", `student:${student.profileId}`, true))) {
+    redirect("/me?regError=" + encodeURIComponent(message("RATE_LIMITED")));
+  }
+  const r = await registerFromProfile(student.profileId, student.email, eventId);
+  revalidatePath("/me");
+  if (r.ok) redirect(`/me?registered=${encodeURIComponent(r.referenceCode)}`);
+  redirect(`/me?regError=${encodeURIComponent(r.message)}${r.needsProfile ? "#my-details" : ""}`);
+}
+
+export type ProfileState = { ok: boolean; message?: string; fields?: Record<string, string[]> } | null;
+
+export async function saveProfileAction(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
+  const student = await requireStudentPage();
+  const r = await updateStudentProfile(student.profileId, {
+    fullName: String(formData.get("fullName") ?? ""),
+    studentId: String(formData.get("studentId") ?? ""),
+    section: String(formData.get("section") ?? ""),
+    yearLevel: String(formData.get("yearLevel") ?? ""),
+    department: String(formData.get("department") ?? ""),
+  });
+  if (!r.ok) return { ok: false, fields: r.fields, message: r.fields.form?.[0] ?? "Please fix the highlighted fields." };
+  revalidatePath("/me");
+  return { ok: true, message: "Details saved." };
 }

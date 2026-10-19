@@ -360,7 +360,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
         <form onSubmit={submitManual} className="px-5 pb-5 space-y-3">
           <div>
             <label className="label" htmlFor="manual-query">Student ID or reference code</label>
-            <input id="manual-query" value={manualQuery} onChange={(e) => setManualQuery(e.target.value)} className="input font-mono" placeholder="2021001955 or SA-XXXX-XXXX" autoCapitalize="characters" />
+            <input id="manual-query" value={manualQuery} onChange={(e) => setManualQuery(e.target.value)} className="input font-mono" placeholder="2020001234 or SA-XXXX-XXXX" autoCapitalize="characters" />
           </div>
           <div>
             <label className="label" htmlFor="manual-reason">Reason *</label>

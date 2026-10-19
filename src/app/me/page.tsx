@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { clsx } from "clsx";
-import { CalendarDays, CheckCircle2, Circle, Clock, MapPin, ShieldCheck, AlertTriangle, XCircle, LogIn, LogOut, CalendarPlus, PartyPopper } from "lucide-react";
+import { CalendarDays, CheckCircle2, Circle, Clock, MapPin, ShieldCheck, AlertTriangle, XCircle, LogIn, LogOut, PartyPopper, CalendarClock } from "lucide-react";
 import { requireStudentPage } from "@/lib/auth/session";
-import { getStudentDashboard, type StudentEventRecord } from "@/lib/services/students";
+import { getStudentDashboard, getStudentProfile, listOpenEventsForStudent, type StudentEventRecord } from "@/lib/services/students";
 import { formatInZone, formatTimeRange } from "@/lib/time";
 import { Logo } from "@/components/Brand";
-import { AutoRefresh, ClaimForm, OpenPassButton, QrImage, RefreshButton, SignOutButton, TimeOutPass } from "./StudentControls";
-import { openPass } from "./actions";
+import { AutoRefresh, ClaimForm, GetQrButton, OpenPassButton, ProfileForm, QrImage, RefreshButton, SignOutButton, TimeOutPass } from "./StudentControls";
+import { openPass, quickRegisterAction } from "./actions";
 
 export const metadata: Metadata = { title: "My attendance", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -139,14 +139,23 @@ function RecordCard({ r, now, highlight }: { r: StudentEventRecord; now: number;
   );
 }
 
-export default async function StudentDashboardPage({ searchParams }: { searchParams: Promise<{ error?: string; registered?: string }> }) {
+export default async function StudentDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; registered?: string; regError?: string; register?: string; welcome?: string }>;
+}) {
   const student = await requireStudentPage();
-  const { error, registered } = await searchParams;
-  const data = await getStudentDashboard(student.profileId);
+  const { error, registered, regError, register, welcome } = await searchParams;
+  const [data, profile, openEvents] = await Promise.all([
+    getStudentDashboard(student.profileId),
+    getStudentProfile(student.profileId),
+    listOpenEventsForStudent(student.profileId),
+  ]);
+  const target = register ? openEvents.find((e) => e.id === register) : undefined;
   const now = new Date().getTime();
   const verdicts = data.records.map((r) => verdict(r, now).key);
   const count = (k: VerdictKey) => verdicts.filter((v) => v === k).length;
-  const firstName = (data.fullName ?? student.displayName ?? "").split(" ")[0];
+  const firstName = (profile?.fullName ?? data.fullName ?? student.displayName ?? "").split(" ")[0];
 
   const current = data.records
     .filter((r) => now < Date.parse(r.event.ends_at) + 2 * 3600_000 && r.registrationStatus === "registered")
@@ -168,7 +177,12 @@ export default async function StudentDashboardPage({ searchParams }: { searchPar
         <div className="max-w-3xl mx-auto px-4 pt-2 pb-12">
           <p className="text-sm text-[#a7c9c6]">My attendance</p>
           <h1 className="text-[26px] font-extrabold leading-tight">{firstName ? `Hi, ${firstName}` : "Welcome"}</h1>
-          {data.maskedStudentId && <p className="font-mono text-sm text-[#a7c9c6] mt-0.5">ID {data.maskedStudentId}</p>}
+          {(profile || data.maskedStudentId) && (
+            <p className="font-mono text-sm text-[#a7c9c6] mt-0.5">
+              ID {profile ? profile.studentId.slice(0, 4) + "••••" + profile.studentId.slice(-2) : data.maskedStudentId}
+              {profile?.section ? ` · ${profile.section}` : ""}
+            </p>
+          )}
         </div>
       </header>
 
@@ -181,6 +195,35 @@ export default async function StudentDashboardPage({ searchParams }: { searchPar
               <p>Your QR pass is below. Reference code <span className="font-mono font-semibold">{registered}</span>.</p>
             </div>
           </div>
+        )}
+        {welcome && (
+          <div role="status" className="card p-4 flex items-start gap-3 border-success-500/30 bg-success-50">
+            <PartyPopper className="w-5 h-5 text-success-700 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="text-sm text-[#0e4d33]">
+              <p className="font-bold">Your account is ready.</p>
+              <p>When an event opens, tap <strong>Get QR pass</strong> below and show it at the door.</p>
+            </div>
+          </div>
+        )}
+        {regError && <div role="alert" className="scan-rejected text-sm font-semibold">{regError}</div>}
+        {target && (
+          <section aria-labelledby="confirm-title" className="card p-4 ring-2 ring-brand-300 flex flex-col gap-3">
+            <div>
+              <p className="text-xs font-bold tracking-[0.08em] uppercase text-brand-700">Register for this event?</p>
+              <h2 id="confirm-title" className="font-bold text-ink text-lg leading-snug">{target.name}</h2>
+              <p className="text-[13px] text-[#4b6362]">
+                {formatInZone(target.starts_at, target.timezone, { dateStyle: "medium" })} · {formatTimeRange(target.starts_at, target.ends_at, target.timezone)} · {target.venue}
+              </p>
+            </div>
+            {profile ? (
+              <form action={quickRegisterAction}>
+                <input type="hidden" name="eventId" value={target.id} />
+                <GetQrButton label="Register & get QR pass" />
+              </form>
+            ) : (
+              <Link href="#my-details" className="btn-secondary">Add your details first</Link>
+            )}
+          </section>
         )}
         {error && (
           <div role="alert" className="scan-rejected text-sm font-semibold">
@@ -203,24 +246,55 @@ export default async function StudentDashboardPage({ searchParams }: { searchPar
           </div>
         </section>
 
-        {data.records.length === 0 && (
-          <div className="card p-8 text-center flex flex-col items-center gap-2">
-            <CalendarPlus className="w-10 h-10 text-brand-300" aria-hidden="true" />
-            <p className="font-bold text-ink">No registrations yet</p>
-            <p className="text-sm text-[#4b6362]">Register for an event and your QR pass will appear here.</p>
-            <Link href="/register" className="btn-primary mt-2">Register for an event</Link>
-          </div>
-        )}
+        {!profile && <ProfileForm initial={null} open />}
 
         {current.length > 0 && (
           <section aria-labelledby="current" className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <h2 id="current" className="text-xs font-bold tracking-[0.08em] uppercase text-[#4b6362]">Your passes</h2>
-              <Link href="/register" className="text-sm font-semibold text-brand-600 min-h-11 inline-flex items-center">+ Register for another</Link>
+              {openEvents.length > 0 && <Link href="#open-events" className="text-sm font-semibold text-brand-600 min-h-11 inline-flex items-center">+ Get another pass</Link>}
             </div>
             {current.map((r) => <RecordCard key={r.registrationId} r={r} now={now} highlight={r.referenceCode === registered} />)}
           </section>
         )}
+
+        <section id="open-events" aria-labelledby="open-title" className="flex flex-col gap-3 scroll-mt-4">
+          <h2 id="open-title" className="text-xs font-bold tracking-[0.08em] uppercase text-[#4b6362]">Open events</h2>
+          {openEvents.length === 0 ? (
+            <div className="card p-6 text-center flex flex-col items-center gap-2">
+              <CalendarClock className="w-10 h-10 text-brand-300" aria-hidden="true" />
+              <p className="font-bold text-ink">No events are open right now</p>
+              <p className="text-sm text-[#4b6362]">
+                You can sign in anytime. When an event opens for registration it appears here, and you can get your QR pass with one tap.
+              </p>
+            </div>
+          ) : (
+            openEvents.map((e) => (
+              <article key={e.id} className="card p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-ink leading-snug">
+                    <Link href={`/events/${e.id}`} className="hover:text-brand-700">{e.name}</Link>
+                  </h3>
+                  <p className="mt-0.5 text-[13px] text-[#4b6362] flex items-center gap-1.5">
+                    <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    {formatInZone(e.starts_at, e.timezone, { dateStyle: "medium" })} · {formatTimeRange(e.starts_at, e.ends_at, e.timezone)}
+                  </p>
+                  <p className="text-[13px] text-[#4b6362] flex items-center gap-1.5 min-w-0">
+                    <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> <span className="truncate">{e.venue}</span>
+                  </p>
+                </div>
+                {profile ? (
+                  <form action={quickRegisterAction}>
+                    <input type="hidden" name="eventId" value={e.id} />
+                    <GetQrButton />
+                  </form>
+                ) : (
+                  <Link href="#my-details" className="btn-secondary">Add details first</Link>
+                )}
+              </article>
+            ))
+          )}
+        </section>
 
         {past.length > 0 && (
           <section aria-labelledby="history" className="flex flex-col gap-3">
@@ -229,7 +303,8 @@ export default async function StudentDashboardPage({ searchParams }: { searchPar
           </section>
         )}
 
-        <ClaimForm defaultOpen={data.records.length === 0} />
+        {profile && <ProfileForm initial={profile} open={Boolean(regError)} />}
+        <ClaimForm />
 
         <p className="text-center text-xs text-[#4b6362]">
           Times are recorded by the scanner and can&apos;t be edited by you. Keep your reference codes as proof of attendance.

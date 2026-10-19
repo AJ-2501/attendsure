@@ -2,9 +2,10 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { Clock, Loader2, LogOut, Plus, QrCode, RefreshCw, Sun } from "lucide-react";
+import { ChevronDown, Clock, Loader2, LogOut, Plus, QrCode, RefreshCw, Save, Sun } from "lucide-react";
+import { STUDENT_ID_EXAMPLE, YEAR_LEVELS } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/client";
-import { claimAction, requestTimeOutPass, type ClaimState } from "./actions";
+import { claimAction, requestTimeOutPass, saveProfileAction, type ClaimState, type ProfileState } from "./actions";
 
 /**
  * Re-fetch attendance while the tab is visible so a scan shows up without reloading.
@@ -177,7 +178,7 @@ export function ClaimForm({ defaultOpen = false }: { defaultOpen?: boolean }) {
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
           <div className="min-w-0">
             <label htmlFor="claim-id" className="label">Student ID</label>
-            <input id="claim-id" name="studentId" className="input font-mono" inputMode="numeric" placeholder="2021001955" autoComplete="off" required />
+            <input id="claim-id" name="studentId" className="input font-mono" inputMode="numeric" placeholder="2020001234" autoComplete="off" required />
           </div>
           <div className="min-w-0">
             <label htmlFor="claim-ref" className="label">Reference code</label>
@@ -186,6 +187,79 @@ export function ClaimForm({ defaultOpen = false }: { defaultOpen?: boolean }) {
         </div>
         {state && <p role={state.ok ? "status" : "alert"} className={state.ok ? "text-sm font-semibold text-success-700" : "text-sm font-semibold text-danger-600"}>{state.message}</p>}
         <ClaimSubmit />
+      </form>
+    </details>
+  );
+}
+
+export function GetQrButton({ label = "Get QR pass" }: { label?: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className="btn-primary w-full sm:w-auto sm:min-w-40">
+      {pending ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><QrCode className="w-4 h-4" aria-hidden="true" /> {label}</>}
+    </button>
+  );
+}
+
+function SaveButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className="btn-primary w-full">
+      {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" aria-hidden="true" />} Save details
+    </button>
+  );
+}
+
+type ProfileValues = { fullName: string; studentId: string; section: string; yearLevel: string; department: string };
+
+/** Saved student details used for one-tap registration. */
+export function ProfileForm({ initial, open }: { initial: ProfileValues | null; open: boolean }) {
+  const [state, action] = useActionState<ProfileState, FormData>(saveProfileAction, null);
+  const f = state?.fields ?? {};
+  const err = (k: keyof ProfileValues) =>
+    f[k]?.[0] ? <p id={`p-${k}-msg`} className="field-error" role="alert">{f[k][0]}</p> : null;
+  const v = initial ?? { fullName: "", studentId: "", section: "", yearLevel: "", department: "College of Nursing" };
+  return (
+    <details id="my-details" className="card overflow-hidden group scroll-mt-4" open={open}>
+      <summary className="cursor-pointer min-h-14 px-4 font-semibold text-ink flex items-center gap-2 list-none">
+        <span className="flex-1">{initial ? "My details" : "Add your student details"}</span>
+        {!initial && <span className="badge badge-yellow">Required</span>}
+        <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <form action={action} className="px-4 pb-4 flex flex-col gap-3" noValidate>
+        <p className="text-sm text-[#4b6362]">Used when you get a QR pass for an event. Your name and student ID are stored encrypted.</p>
+        <div>
+          <label htmlFor="p-fullName" className="label">Full name</label>
+          <input id="p-fullName" name="fullName" defaultValue={v.fullName} className="input" autoComplete="name" placeholder="e.g. Maria Clara Santos" aria-invalid={f.fullName ? true : undefined} aria-describedby="p-fullName-msg" />
+          {err("fullName")}
+        </div>
+        <div>
+          <label htmlFor="p-studentId" className="label">Student ID</label>
+          <input id="p-studentId" name="studentId" defaultValue={v.studentId} className="input font-mono" inputMode="numeric" maxLength={12} placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} aria-invalid={f.studentId ? true : undefined} aria-describedby="p-studentId-msg" />
+          {err("studentId") ?? <p id="p-studentId-msg" className="mt-1 text-xs text-[#4b6362]">10 digits, no dash — e.g. {STUDENT_ID_EXAMPLE}</p>}
+        </div>
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <label htmlFor="p-section" className="label">Section</label>
+            <input id="p-section" name="section" defaultValue={v.section} className="input" autoCapitalize="characters" placeholder="e.g. BSN 2-B" aria-invalid={f.section ? true : undefined} />
+            {err("section")}
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="p-yearLevel" className="label">Year level</label>
+            <select id="p-yearLevel" name="yearLevel" defaultValue={v.yearLevel} className="input" aria-invalid={f.yearLevel ? true : undefined}>
+              <option value="" disabled>Select…</option>
+              {YEAR_LEVELS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+            {err("yearLevel")}
+          </div>
+        </div>
+        <div>
+          <label htmlFor="p-department" className="label">College / department</label>
+          <input id="p-department" name="department" defaultValue={v.department} className="input" aria-invalid={f.department ? true : undefined} />
+          {err("department")}
+        </div>
+        {state?.message && <p role={state.ok ? "status" : "alert"} className={state.ok ? "text-sm font-semibold text-success-700" : "text-sm font-semibold text-danger-600"}>{state.message}</p>}
+        <SaveButton />
       </form>
     </details>
   );

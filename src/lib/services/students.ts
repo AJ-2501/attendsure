@@ -1,10 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
-import { FIELD, tdesDecrypt } from "@/lib/crypto/tdes";
+import { FIELD, tdesDecrypt, tdesEncrypt } from "@/lib/crypto/tdes";
 import { deriveQrToken, newAccessToken, studentIdDigest } from "@/lib/crypto/tokens";
-import { normalizeStudentId, studentSignupSchema } from "@/lib/schemas";
+import { normalizeStudentId, studentProfileSchema, studentSignupSchema } from "@/lib/schemas";
+import { registerParticipant } from "@/lib/services/registrations";
+import { listPublishedEvents } from "@/lib/services/events";
+import { effectiveStatus, registrationPhase, timeOutWindow } from "@/lib/time";
 import { selfIssueTimeOut } from "@/lib/services/credentials";
-import { timeOutWindow } from "@/lib/time";
 import { log } from "@/lib/logger";
 import type { AttendanceRow, CredentialRow, EventRow, RegistrationRow } from "@/lib/types";
 
@@ -236,8 +238,10 @@ export async function reissuePassLink(profileId: string, registrationId: string)
   return data ? access.token : null;
 }
 
-/** Details from the student's latest registration, to prefill the next registration form. */
+/** Details to prefill a registration form: saved profile first, else the latest registration. */
 export async function getStudentPrefill(profileId: string) {
+  const saved = await getStudentProfile(profileId);
+  if (saved) return saved;
   const { data } = await createAdminClient()
     .from("registrations")
     .select("participant_name_encrypted, student_id_encrypted, section, year_level, department, email_encrypted, registered_at")
@@ -257,4 +261,155 @@ export async function getStudentPrefill(profileId: string) {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Event-independent student profiles
+// ---------------------------------------------------------------------------
+
+export interface StudentProfile {
+  fullName: string;
+  studentId: string;
+  section: string;
+  yearLevel: string;
+  department: string;
+}
+
+export type ProfileSignupResult =
+  | { ok: true; profileId: string }
+  | { ok: false; code: "VALIDATION_ERROR"; fields: Record<string, string[]> }
+  | { ok: false; code: "EMAIL_TAKEN" | "NOT_MIGRATED" | "ERROR" };
+
+/** Sign up once with personal details + credentials; no event required. */
+export async function signUpStudent(raw: unknown): Promise<ProfileSignupResult> {
+  const parsed = studentProfileSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+  const v = parsed.data;
+
+  const account = await createStudentUser(v.email, v.password, v.fullName);
+  if (!account.ok) return { ok: false, code: account.code };
+
+  const { error } = await createAdminClient()
+    .from("profiles")
+    .update({
+      full_name_encrypted: tdesEncrypt(v.fullName, FIELD.profileName),
+      student_id_encrypted: tdesEncrypt(v.studentId, FIELD.profileStudentId),
+      student_id_digest: studentIdDigest(v.studentId),
+      section: v.section,
+      year_level: v.yearLevel,
+      department: v.department,
+    })
+    .eq("id", account.profileId);
+  if (error) {
+    await deleteStudentUser(account.userId); // roll back so the student can retry
+    log.error("student_profile_save", { message: error.message });
+    return { ok: false, code: /column|schema cache/i.test(error.message) ? "NOT_MIGRATED" : "ERROR" };
+  }
+  return { ok: true, profileId: account.profileId };
+}
+
+type ProfileRow = { full_name_encrypted: string | null; student_id_encrypted: string | null; section: string | null; year_level: string | null; department: string | null };
+
+/** Saved student details (decrypted server-side); null if the student has no saved profile yet. */
+export async function getStudentProfile(profileId: string): Promise<StudentProfile | null> {
+  const { data, error } = await createAdminClient()
+    .from("profiles")
+    .select("full_name_encrypted, student_id_encrypted, section, year_level, department")
+    .eq("id", profileId)
+    .maybeSingle<ProfileRow>();
+  if (error || !data?.full_name_encrypted || !data.student_id_encrypted) return null;
+  try {
+    return {
+      fullName: tdesDecrypt(data.full_name_encrypted, FIELD.profileName),
+      studentId: tdesDecrypt(data.student_id_encrypted, FIELD.profileStudentId),
+      section: data.section ?? "",
+      yearLevel: data.year_level ?? "",
+      department: data.department ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export type QuickRegisterResult =
+  | { ok: true; referenceCode: string }
+  | { ok: false; message: string; needsProfile?: boolean };
+
+const QUICK_ERRORS: Record<string, string> = {
+  DUPLICATE_REGISTRATION: "You're already registered for this event.",
+  EVENT_NOT_AVAILABLE: "This event isn't accepting registrations.",
+  REGISTRATION_CLOSED: "Registration for this event is closed.",
+  EVENT_FULL: "This event is full.",
+};
+
+const FIELD_LABEL: Record<string, string> = {
+  studentId: "Student ID", email: "Email", department: "Department", yearLevel: "Year level", section: "Section", fullName: "Name",
+};
+
+/** One-tap registration using the student's saved profile; links the registration to the account. */
+export async function registerFromProfile(profileId: string, accountEmail: string | null, eventId: string): Promise<QuickRegisterResult> {
+  const profile = await getStudentProfile(profileId);
+  if (!profile) return { ok: false, needsProfile: true, message: "Add your student details first." };
+  const result = await registerParticipant({
+    eventId,
+    fullName: profile.fullName,
+    studentId: profile.studentId,
+    section: profile.section,
+    yearLevel: profile.yearLevel,
+    department: profile.department,
+    email: accountEmail ?? "",
+    consent: true,
+  });
+  if (!result.ok) {
+    if (result.code === "VALIDATION_ERROR") {
+      const first = Object.entries(result.fields ?? {})[0];
+      return {
+        ok: false,
+        needsProfile: true,
+        message: first
+          ? `${FIELD_LABEL[first[0]] ?? first[0]}: ${first[1][0]}. Update your details and try again.`
+          : "Your details don't meet this event's requirements.",
+      };
+    }
+    return { ok: false, message: QUICK_ERRORS[result.code] ?? "Couldn't register. Please try again." };
+  }
+  if (result.registrationId) await linkRegistration(profileId, result.registrationId, result.studentIdDigest);
+  return { ok: true, referenceCode: result.referenceCode };
+}
+
+/** Update saved details (no credentials). */
+export async function updateStudentProfile(profileId: string, raw: unknown): Promise<{ ok: true } | { ok: false; fields: Record<string, string[]> }> {
+  const parsed = studentProfileSchema.pick({ fullName: true, studentId: true, section: true, yearLevel: true, department: true }).safeParse(raw);
+  if (!parsed.success) return { ok: false, fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+  const v = parsed.data;
+  const { error } = await createAdminClient()
+    .from("profiles")
+    .update({
+      full_name_encrypted: tdesEncrypt(v.fullName, FIELD.profileName),
+      student_id_encrypted: tdesEncrypt(v.studentId, FIELD.profileStudentId),
+      student_id_digest: studentIdDigest(v.studentId),
+      section: v.section,
+      year_level: v.yearLevel,
+      department: v.department,
+    })
+    .eq("id", profileId);
+  if (error) return { ok: false, fields: { form: ["Couldn't save your details. Please try again."] } };
+  return { ok: true };
+}
+
+/** Published events open for registration that this student hasn't joined yet. */
+export async function listOpenEventsForStudent(profileId: string) {
+  const now = new Date();
+  const events = (await listPublishedEvents()).filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
+  if (!events.length) return [];
+  const { data } = await createAdminClient()
+    .from("registrations")
+    .select("event_id")
+    .eq("linked_profile_id", profileId)
+    .in("event_id", events.map((e) => e.id))
+    .returns<{ event_id: string }[]>();
+  const joined = new Set((data ?? []).map((r) => r.event_id));
+  return events
+    .filter((e) => !joined.has(e.id))
+    .map((e) => ({ id: e.id, name: e.name, venue: e.venue, timezone: e.timezone, starts_at: e.starts_at, ends_at: e.ends_at, capacity: e.capacity }));
 }

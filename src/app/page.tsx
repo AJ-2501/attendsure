@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { listPublishedEvents, countRegistrations, toPublicEvent } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase } from "@/lib/time";
 import Link from "next/link";
-import { ArrowDown, ShieldCheck } from "lucide-react";
+import { ArrowDown, ShieldCheck, UserRound } from "lucide-react";
 import { Logo, EcgLine } from "@/components/Brand";
 import EventBrowser, { type EventItem } from "@/components/EventBrowser";
 
@@ -31,8 +31,13 @@ export default async function HomePage() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-[#dce7e5] pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Logo />
-          <Link href="/login" className="btn-secondary">Admin sign in</Link>
+          <Logo size="sm" />
+          <nav aria-label="Sign in" className="flex items-center gap-1.5 sm:gap-2">
+            <Link href="/login" className="btn-ghost px-3 text-[#23403f]">Admin</Link>
+            <Link href="/student/login" className="btn-primary px-3.5 sm:px-4">
+              <UserRound className="w-4 h-4" aria-hidden="true" /> Student login
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -52,8 +57,8 @@ export default async function HomePage() {
               <Link href="#events" className="btn-primary btn-lg">
                 View events <ArrowDown className="w-5 h-5" aria-hidden="true" />
               </Link>
-              <Link href="/me" className="btn btn-lg border border-white/25 text-white hover:bg-white/10">
-                <ShieldCheck className="w-5 h-5" aria-hidden="true" /> My attendance
+              <Link href="/student/signup" className="btn btn-lg border border-white/25 text-white hover:bg-white/10">
+                <ShieldCheck className="w-5 h-5" aria-hidden="true" /> Create student account
               </Link>
             </div>
             {openCount > 0 && (
