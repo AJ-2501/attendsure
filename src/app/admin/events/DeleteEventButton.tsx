@@ -33,14 +33,27 @@ export default function DeleteEventButton({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!matches) return;
+    if (reason.trim().length < 5) {
+      setError({ field: "reason", message: "Give a reason of at least 5 characters." });
+      document.getElementById(`del-reason-${eventId}`)?.focus();
+      return;
+    }
+    if (!matches) {
+      setError({ field: "confirm", message: "The name doesn't match. Type the event name exactly." });
+      document.getElementById(`del-confirm-${eventId}`)?.focus();
+      return;
+    }
     start(async () => {
       const result = await deleteEventAction(eventId, confirm, reason);
       if (result.ok) {
         dialogRef.current?.close();
         router.push("/admin/events?deleted=1");
         router.refresh();
-      } else setError({ message: result.error, field: result.field });
+      } else {
+        setError({ message: result.error, field: result.field });
+        if (result.field === "reason") document.getElementById(`del-reason-${eventId}`)?.focus();
+        else if (result.field === "confirm") document.getElementById(`del-confirm-${eventId}`)?.focus();
+      }
     });
   }
 
@@ -48,7 +61,7 @@ export default function DeleteEventButton({
     <>
       {variant === "icon" ? (
         <button type="button" onClick={open} className="btn-ghost w-11 h-11 p-0 text-danger-600 hover:bg-danger-50" aria-label={`Delete ${eventName}`}>
-          <Trash2 className="w-[18px] h-[18px]" />
+          <Trash2 className="w-[18px] h-[18px]" aria-hidden="true" />
         </button>
       ) : (
         <button type="button" onClick={open} className="btn-danger btn-lg w-full sm:w-auto">
@@ -62,7 +75,7 @@ export default function DeleteEventButton({
         className="m-auto w-[calc(100%-2rem)] max-w-md rounded-[24px] p-0 bg-white text-ink shadow-2xl backdrop:bg-ink/60 backdrop:backdrop-blur-sm"
         onClick={(e) => e.target === dialogRef.current && !pending && dialogRef.current?.close()}
       >
-        <form onSubmit={submit} className="p-5 sm:p-6 flex flex-col gap-4">
+        <form onSubmit={submit} className="p-5 sm:p-6 flex flex-col gap-4" noValidate>
           <div className="flex items-start gap-3">
             <span className="w-11 h-11 rounded-full bg-danger-50 text-danger-600 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" aria-hidden="true" />
@@ -72,7 +85,7 @@ export default function DeleteEventButton({
               <p className="text-sm text-[#4b6362] break-words">{eventName}</p>
             </div>
             <button type="button" onClick={() => dialogRef.current?.close()} disabled={pending} className="btn-ghost w-11 h-11 p-0 -mr-2 -mt-2" aria-label="Close">
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
@@ -82,39 +95,56 @@ export default function DeleteEventButton({
           </div>
 
           <div>
-            <label htmlFor={`del-reason-${eventId}`} className="label">Reason</label>
+            <label htmlFor={`del-reason-${eventId}`} className="label">Reason *</label>
             <input
               id={`del-reason-${eventId}`}
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (error?.field === "reason") setError(null);
+              }}
               className="input"
               placeholder="e.g. Duplicate event created by mistake"
               aria-invalid={error?.field === "reason" ? true : undefined}
-              required
-              minLength={5}
+              aria-describedby={error?.field === "reason" ? `del-reason-err-${eventId}` : undefined}
+              maxLength={500}
             />
+            {error?.field === "reason" && (
+              <p id={`del-reason-err-${eventId}`} className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {error.message}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor={`del-confirm-${eventId}`} className="label">
-              Type <span className="font-mono font-bold text-ink break-all">{eventName}</span> to confirm
+              Type <span className="font-mono font-bold text-ink break-all">{eventName}</span> to confirm *
             </label>
             <input
               id={`del-confirm-${eventId}`}
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={(e) => {
+                setConfirm(e.target.value);
+                if (error?.field === "confirm") setError(null);
+              }}
               className="input"
               autoComplete="off"
               spellCheck={false}
               aria-invalid={error?.field === "confirm" ? true : undefined}
+              aria-describedby={error?.field === "confirm" ? `del-confirm-err-${eventId}` : undefined}
             />
+            {error?.field === "confirm" && (
+              <p id={`del-confirm-err-${eventId}`} className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {error.message}
+              </p>
+            )}
           </div>
 
-          {error && <p role="alert" className="text-sm font-semibold text-danger-600">{error.message}</p>}
+          {error && !error.field && <p role="alert" className="text-sm font-semibold text-danger-600">{error.message}</p>}
 
           <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
             <button type="button" onClick={() => dialogRef.current?.close()} disabled={pending} className="btn-secondary btn-lg">Keep event</button>
-            <button type="submit" disabled={!matches || reason.trim().length < 5 || pending} className={clsx("btn-danger btn-lg", (!matches || reason.trim().length < 5) && "opacity-50")}>
-              {pending ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : <><Trash2 className="w-4 h-4" aria-hidden="true" /> Delete permanently</>}
+            <button type="submit" disabled={pending} className={clsx("btn-danger btn-lg", (!matches || reason.trim().length < 5) && "opacity-75")}>
+              {pending ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Deleting…</> : <><Trash2 className="w-4 h-4" aria-hidden="true" /> Delete permanently</>}
             </button>
           </div>
         </form>

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { accountSchema, buildRegistrationSchema, YEAR_LEVELS } from "@/lib/schemas";
@@ -67,13 +67,13 @@ function RegisterForm() {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [me, setMe] = useState<Me | null>(null);
   const [state, setState] = useState<State>("idle");
-  const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({});
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [result, setResult] = useState<{ referenceCode: string; participantPath: string; eventName: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
   const [preselect, setPreselect] = useState<string | null>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
 
   const needsAccount = !me; // signed-out visitors create their account here
   const rf = selectedEvent?.required_fields ?? { department: true, year_level: true, email: false };
@@ -104,6 +104,8 @@ function RegisterForm() {
     register,
     handleSubmit,
     setValue,
+    setError,
+    setFocus,
     watch,
     formState: { errors },
   } = useForm<FormValues>({ resolver, mode: "onTouched", defaultValues: { eventId: "", consent: true } });
@@ -147,7 +149,6 @@ function RegisterForm() {
 
   async function onSubmit(values: FormValues) {
     setState("submitting");
-    setServerErrors({});
     setServerMessage(null);
     const { accountEmail, accountPassword, ...registration } = values;
     const payload = {
@@ -160,8 +161,14 @@ function RegisterForm() {
       const json = await res.json();
       if (!json.ok) {
         setState("error");
-        setServerErrors(json.error?.fields ?? {});
+        const fields = (json.error?.fields ?? {}) as Record<string, string[]>;
+        const names = Object.keys(fields);
+        for (const name of names) {
+          if (fields[name]?.[0]) setError(name as keyof FormValues, { message: fields[name][0] });
+        }
         setServerMessage(json.error?.message ?? "Registration could not be completed. Please try again.");
+        if (names[0]) setFocus(names[0] as keyof FormValues);
+        else requestAnimationFrame(() => alertRef.current?.focus());
         return;
       }
       if (json.data.linkedToAccount) {
@@ -185,11 +192,15 @@ function RegisterForm() {
     } catch {
       setState("error");
       setServerMessage("Can't reach the server. Check your connection and try again.");
+      requestAnimationFrame(() => alertRef.current?.focus());
     }
   }
 
-  const err = (name: keyof FormValues) => errors[name]?.message ?? serverErrors[name]?.[0];
-  const aria = (name: keyof FormValues) => ({ "aria-invalid": err(name) ? true : undefined, "aria-describedby": `${name}-msg` });
+  const err = (name: keyof FormValues) => errors[name]?.message;
+  const aria = (name: keyof FormValues, hasHint = false) => ({
+    "aria-invalid": err(name) ? true : undefined,
+    "aria-describedby": err(name) || hasHint ? `${name}-msg` : undefined,
+  });
 
   if (state === "done" && result) {
     return (
@@ -217,7 +228,7 @@ function RegisterForm() {
       <header className="sticky top-0 z-20 bg-white border-b border-[#dce7e5] pt-[env(safe-area-inset-top)]">
         <div className="max-w-lg mx-auto h-14 px-2 flex items-center gap-1">
           <Link href="/" aria-label="Back to events" className="btn-ghost w-11 h-11 p-0">
-            <ChevronLeft className="w-[22px] h-[22px]" />
+            <ChevronLeft className="w-[22px] h-[22px]" aria-hidden="true" />
           </Link>
           <h1 className="text-[17px] font-bold text-ink">Event registration</h1>
         </div>
@@ -250,7 +261,14 @@ function RegisterForm() {
           </div>
         )}
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={handleSubmit(onSubmit, (errs) => {
+            const first = Object.keys(errs)[0] as keyof FormValues | undefined;
+            if (first) setFocus(first);
+          })}
+          noValidate
+        >
           <section className="card p-5 sm:p-6 flex flex-col gap-5" aria-labelledby="sec-details">
             <h2 id="sec-details" className="font-bold text-ink flex items-center gap-2">
               <UserRound className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your details
@@ -270,13 +288,13 @@ function RegisterForm() {
 
             <div>
               <label className="label" htmlFor="fullName">Full name *</label>
-              <input id="fullName" {...register("fullName")} {...aria("fullName")} placeholder="Maria Clara Santos" className="input" autoComplete="name" />
+              <input id="fullName" {...register("fullName")} {...aria("fullName")} placeholder="Maria Clara Santos" maxLength={120} className="input" autoComplete="name" />
               <FieldError id="fullName-msg" message={err("fullName")} />
             </div>
 
             <div>
               <label className="label" htmlFor="studentId">Student ID *</label>
-              <input id="studentId" {...register("studentId")} {...aria("studentId")} placeholder="2020001234" className="input font-mono" autoComplete="off" inputMode="numeric" maxLength={32} spellCheck={false} readOnly={Boolean(me?.prefill)} />
+              <input id="studentId" {...register("studentId")} {...aria("studentId", true)} placeholder="2020001234" className="input font-mono" autoComplete="off" inputMode="numeric" maxLength={32} spellCheck={false} readOnly={Boolean(me?.prefill)} />
               {err("studentId") ? (
                 <FieldError id="studentId-msg" message={err("studentId")} />
               ) : (
@@ -289,7 +307,7 @@ function RegisterForm() {
             <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <label className="label" htmlFor="section">Section *</label>
-                <input id="section" {...register("section")} {...aria("section")} placeholder="BSN 2-B" autoCapitalize="characters" className="input" />
+                <input id="section" {...register("section")} {...aria("section")} placeholder="BSN 2-B" autoCapitalize="characters" maxLength={40} className="input" />
                 <FieldError id="section-msg" message={err("section")} />
               </div>
               {(rf.year_level || selectedEvent) && (
@@ -310,7 +328,7 @@ function RegisterForm() {
             {(rf.department || selectedEvent) && (
               <div>
                 <label className="label" htmlFor="department">College / department {rf.department ? "*" : "(optional)"}</label>
-                <input id="department" {...register("department")} {...aria("department")} placeholder="College of Nursing" className="input" />
+                <input id="department" {...register("department")} {...aria("department")} placeholder="College of Nursing" maxLength={120} className="input" />
                 <FieldError id="department-msg" message={err("department")} />
               </div>
             )}
@@ -318,7 +336,7 @@ function RegisterForm() {
             {(rf.email && !needsAccount) && (
               <div>
                 <label className="label" htmlFor="email">School email *</label>
-                <input id="email" type="email" {...register("email")} {...aria("email")} placeholder="name@nursing.edu.ph" inputMode="email" className="input" autoComplete="email" />
+                <input id="email" type="email" {...register("email")} {...aria("email")} placeholder="name@nursing.edu.ph" inputMode="email" maxLength={254} className="input" autoComplete="email" />
                 <FieldError id="email-msg" message={err("email")} />
               </div>
             )}
@@ -334,15 +352,15 @@ function RegisterForm() {
               </div>
               <div>
                 <label className="label" htmlFor="accountEmail">Email address *</label>
-                <input id="accountEmail" type="email" {...register("accountEmail")} {...aria("accountEmail")} placeholder="you@nursing.edu.ph" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} className="input" />
+                <input id="accountEmail" type="email" {...register("accountEmail")} {...aria("accountEmail")} placeholder="you@nursing.edu.ph" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input" />
                 <FieldError id="accountEmail-msg" message={err("accountEmail")} />
               </div>
               <div>
                 <label className="label" htmlFor="accountPassword">Create a password *</label>
                 <div className="relative">
-                  <input id="accountPassword" type={showPassword ? "text" : "password"} {...register("accountPassword")} {...aria("accountPassword")} autoComplete="new-password" className="input pr-14" />
+                  <input id="accountPassword" type={showPassword ? "text" : "password"} {...register("accountPassword")} {...aria("accountPassword", true)} autoComplete="new-password" maxLength={72} className="input pr-14" />
                   <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
                   </button>
                 </div>
                 {err("accountPassword") ? (
@@ -354,22 +372,24 @@ function RegisterForm() {
             </section>
           )}
 
-          <label className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-white p-3.5">
-            <input type="checkbox" {...register("consent")} className="mt-0.5 w-[22px] h-[22px] shrink-0 accent-brand-600" />
-            <span className="text-[13px] leading-relaxed text-[#23403f]">
-              I agree that my name and student ID are stored encrypted and used only for attendance, per the Data Privacy Act of 2012.
-            </span>
-          </label>
-          <FieldError id="consent-msg" message={err("consent")} />
+          <div>
+            <label htmlFor="consent" className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-white p-3.5">
+              <input id="consent" type="checkbox" {...register("consent")} {...aria("consent")} className="mt-0.5 w-[22px] h-[22px] shrink-0 accent-brand-600" />
+              <span className="text-[13px] leading-relaxed text-[#23403f]">
+                I agree that my name and student ID are stored encrypted and used only for attendance, per the Data Privacy Act of 2012.
+              </span>
+            </label>
+            <FieldError id="consent-msg" message={err("consent")} />
+          </div>
 
           {state === "error" && serverMessage && (
-            <div role="alert" className="scan-rejected text-sm font-semibold">{serverMessage}</div>
+            <div ref={alertRef} role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverMessage}</div>
           )}
 
           <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-[#f3f7f6]/95 backdrop-blur">
             <button type="submit" disabled={busy || loadingEvents} className="btn-primary btn-lg w-full">
-              {state === "submitting" ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</>
-                : state === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening your dashboard…</>
+              {state === "submitting" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Registering…</>
+                : state === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Opening your dashboard…</>
                 : needsAccount ? "Register & create account" : "Register & get my QR pass"}
             </button>
           </div>

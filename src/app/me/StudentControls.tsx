@@ -2,7 +2,7 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { ChevronDown, Clock, Loader2, LogOut, Plus, QrCode, RefreshCw, Save, Sun } from "lucide-react";
+import { AlertTriangle, ChevronDown, Clock, Loader2, LogOut, Plus, QrCode, RefreshCw, Save, Sun } from "lucide-react";
 import { STUDENT_ID_EXAMPLE, YEAR_LEVELS } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/client";
 import { claimAction, requestTimeOutPass, saveProfileAction, type ClaimState, type ProfileState } from "./actions";
@@ -170,24 +170,59 @@ function ClaimSubmit() {
 /** Add an older registration (made before the account existed) with its reference code. */
 export function ClaimForm({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const [state, action] = useActionState<ClaimState, FormData>(claimAction, null);
+  const f = state?.fields ?? {};
   return (
     <details className="card overflow-hidden group" open={defaultOpen}>
       <summary className="cursor-pointer min-h-14 px-4 font-semibold text-ink flex items-center gap-2 list-none">
         <Plus className="w-4 h-4 text-brand-600" aria-hidden="true" /> Add a registration with a reference code
       </summary>
-      <form action={action} className="px-4 pb-4 flex flex-col gap-3">
+      <form action={action} className="px-4 pb-4 flex flex-col gap-3" noValidate>
         <p className="text-sm text-[#4b6362]">Registered before you had an account? Enter your student ID and the reference code from that registration.</p>
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
           <div className="min-w-0">
             <label htmlFor="claim-id" className="label">Student ID</label>
-            <input id="claim-id" name="studentId" className="input font-mono" inputMode="numeric" placeholder="2020001234" autoComplete="off" required />
+            <input
+              id="claim-id"
+              name="studentId"
+              className="input font-mono"
+              inputMode="numeric"
+              placeholder="2020001234"
+              autoComplete="off"
+              maxLength={32}
+              aria-invalid={f.studentId ? true : undefined}
+              aria-describedby={f.studentId ? "claim-id-msg" : undefined}
+            />
+            {f.studentId?.[0] && (
+              <p id="claim-id-msg" className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {f.studentId[0]}
+              </p>
+            )}
           </div>
           <div className="min-w-0">
             <label htmlFor="claim-ref" className="label">Reference code</label>
-            <input id="claim-ref" name="referenceCode" className="input font-mono uppercase" placeholder="SA-XXXX-XXXX" autoCapitalize="characters" autoComplete="off" required maxLength={12} />
+            <input
+              id="claim-ref"
+              name="referenceCode"
+              className="input font-mono uppercase"
+              placeholder="SA-XXXX-XXXX"
+              autoCapitalize="characters"
+              autoComplete="off"
+              maxLength={12}
+              aria-invalid={f.referenceCode ? true : undefined}
+              aria-describedby={f.referenceCode ? "claim-ref-msg" : undefined}
+            />
+            {f.referenceCode?.[0] && (
+              <p id="claim-ref-msg" className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {f.referenceCode[0]}
+              </p>
+            )}
           </div>
         </div>
-        {state && <p role={state.ok ? "status" : "alert"} className={state.ok ? "text-sm font-semibold text-success-700" : "text-sm font-semibold text-danger-600"}>{state.message}</p>}
+        {state?.message && !state.fields && (
+          <p role={state.ok ? "status" : "alert"} className={state.ok ? "text-sm font-semibold text-success-700" : "text-sm font-semibold text-danger-600"}>
+            {state.message}
+          </p>
+        )}
         <ClaimSubmit />
       </form>
     </details>
@@ -219,7 +254,15 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
   const [state, action] = useActionState<ProfileState, FormData>(saveProfileAction, null);
   const f = state?.fields ?? {};
   const err = (k: keyof ProfileValues) =>
-    f[k]?.[0] ? <p id={`p-${k}-msg`} className="field-error" role="alert">{f[k][0]}</p> : null;
+    f[k]?.[0] ? (
+      <p id={`p-${k}-msg`} className="field-error flex items-center gap-1.5" role="alert">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {f[k][0]}
+      </p>
+    ) : null;
+  const aria = (k: keyof ProfileValues, hasHint = false) => ({
+    "aria-invalid": f[k] ? true : undefined,
+    "aria-describedby": f[k] || hasHint ? `p-${k}-msg` : undefined,
+  });
   const v = initial ?? { fullName: "", studentId: "", section: "", yearLevel: "", department: "College of Nursing" };
   return (
     <details id="my-details" className="card overflow-hidden group scroll-mt-4" open={open}>
@@ -232,23 +275,23 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
         <p className="text-sm text-[#4b6362]">Used when you get a QR pass for an event. Your name and student ID are stored encrypted.</p>
         <div>
           <label htmlFor="p-fullName" className="label">Full name</label>
-          <input id="p-fullName" name="fullName" defaultValue={v.fullName} className="input" autoComplete="name" placeholder="e.g. Maria Clara Santos" aria-invalid={f.fullName ? true : undefined} aria-describedby="p-fullName-msg" />
+          <input id="p-fullName" name="fullName" defaultValue={v.fullName} maxLength={120} className="input" autoComplete="name" placeholder="e.g. Maria Clara Santos" {...aria("fullName")} />
           {err("fullName")}
         </div>
         <div>
           <label htmlFor="p-studentId" className="label">Student ID</label>
-          <input id="p-studentId" name="studentId" defaultValue={v.studentId} className="input font-mono" inputMode="numeric" maxLength={12} placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} aria-invalid={f.studentId ? true : undefined} aria-describedby="p-studentId-msg" />
+          <input id="p-studentId" name="studentId" defaultValue={v.studentId} className="input font-mono" inputMode="numeric" maxLength={12} placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} {...aria("studentId", true)} />
           {err("studentId") ?? <p id="p-studentId-msg" className="mt-1 text-xs text-[#4b6362]">10 digits, no dash — e.g. {STUDENT_ID_EXAMPLE}</p>}
         </div>
         <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
           <div className="min-w-0">
             <label htmlFor="p-section" className="label">Section</label>
-            <input id="p-section" name="section" defaultValue={v.section} className="input" autoCapitalize="characters" placeholder="e.g. BSN 2-B" aria-invalid={f.section ? true : undefined} />
+            <input id="p-section" name="section" defaultValue={v.section} maxLength={40} className="input" autoCapitalize="characters" placeholder="e.g. BSN 2-B" {...aria("section")} />
             {err("section")}
           </div>
           <div className="min-w-0">
             <label htmlFor="p-yearLevel" className="label">Year level</label>
-            <select id="p-yearLevel" name="yearLevel" defaultValue={v.yearLevel} className="input" aria-invalid={f.yearLevel ? true : undefined}>
+            <select id="p-yearLevel" name="yearLevel" defaultValue={v.yearLevel} className="input" {...aria("yearLevel")}>
               <option value="" disabled>Select…</option>
               {YEAR_LEVELS.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -257,7 +300,7 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
         </div>
         <div>
           <label htmlFor="p-department" className="label">College / department</label>
-          <input id="p-department" name="department" defaultValue={v.department} className="input" aria-invalid={f.department ? true : undefined} />
+          <input id="p-department" name="department" defaultValue={v.department} maxLength={120} className="input" {...aria("department")} />
           {err("department")}
         </div>
         {state?.message && <p role={state.ok ? "status" : "alert"} className={state.ok ? "text-sm font-semibold text-success-700" : "text-sm font-semibold text-danger-600"}>{state.message}</p>}

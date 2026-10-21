@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireStudentPage } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { claimRegistrationSchema } from "@/lib/schemas";
 import { claimRegistration, issueTimeOutPass, registerFromProfile, reissuePassLink, updateStudentProfile } from "@/lib/services/students";
 import { message } from "@/lib/messages";
 
@@ -25,17 +26,23 @@ export async function requestTimeOutPass(registrationId: string): Promise<TimeOu
   return { ok: true, token: r.token, expiresAt: r.expiresAt };
 }
 
-export type ClaimState = { ok: boolean; message: string } | null;
+export type ClaimState = { ok: boolean; message?: string; fields?: Record<string, string[]> } | null;
 
 export async function claimAction(_prev: ClaimState, formData: FormData): Promise<ClaimState> {
   const student = await requireStudentPage();
   if (!(await checkRateLimit("studentSignup", student.profileId, true))) return { ok: false, message: message("RATE_LIMITED") };
-  const studentId = String(formData.get("studentId") ?? "");
-  const referenceCode = String(formData.get("referenceCode") ?? "");
-  if (!studentId.trim() || !/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(referenceCode.trim())) {
-    return { ok: false, message: "Enter your student ID and a reference code like SA-XXXX-XXXX." };
+  const parsed = claimRegistrationSchema.safeParse({
+    studentId: String(formData.get("studentId") ?? ""),
+    referenceCode: String(formData.get("referenceCode") ?? ""),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      fields: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+      message: "Please check the highlighted fields.",
+    };
   }
-  const r = await claimRegistration(student.profileId, studentId, referenceCode);
+  const r = await claimRegistration(student.profileId, parsed.data.studentId, parsed.data.referenceCode);
   if (!r.ok) {
     return {
       ok: false,

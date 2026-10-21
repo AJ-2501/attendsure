@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm, type FieldErrors, type Resolver, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema, type EventInput } from "@/lib/schemas";
@@ -48,7 +48,7 @@ const eventResolver: Resolver<EventInput> = async (values, ctx, opts) => {
     const raw = v[k];
     if (raw === "" || raw === undefined || raw === null) {
       if (k.startsWith("timeOut")) v[k] = null;
-      else (missing as Record<string, unknown>)[k] = { type: "required", message: "Required" };
+      else (missing as Record<string, unknown>)[k] = { type: "required", message: "Select a date and time" };
     } else if (typeof raw === "string" && LOCAL_DT.test(raw)) {
       try {
         v[k] = zonedLocalToUtc(raw, values.timezone);
@@ -71,9 +71,9 @@ function F({ id, label, error, required, hint, children, className }: { id: stri
       </label>
       {children}
       {error ? (
-        <p className="field-error flex items-center gap-1" role="alert"><AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {error}</p>
+        <p id={`${id}-msg`} className="field-error flex items-center gap-1.5" role="alert"><AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {error}</p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-[#4b6362]">{hint}</p>
+        <p id={`${id}-msg`} className="mt-1 text-xs text-[#4b6362]">{hint}</p>
       ) : null}
     </div>
   );
@@ -106,7 +106,8 @@ function Toggle({ id, label, description, field }: { id: string; label: string; 
 export default function EventFormClient({ defaultValues, onSubmit, submitLabel, cancelHref = "/admin/events" }: Props) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string[]>([]);
+  const [summaryKeys, setSummaryKeys] = useState<(keyof EventInput)[]>([]);
+  const alertRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -133,16 +134,16 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
   });
 
   function onInvalid(errs: FieldErrors<EventInput>) {
-    const keys = Object.keys(errs);
-    setSummary(keys.map((k) => LABELS[k] ?? k));
+    const keys = Object.keys(errs) as (keyof EventInput)[];
+    setSummaryKeys(keys);
     // Move focus (and the viewport) to the first problem.
-    const first = [...DATETIME_FIELDS, ...Object.keys(LABELS)].find((k) => keys.includes(k)) ?? keys[0];
-    if (first) setFocus(first as keyof EventInput, { shouldSelect: false });
+    const first = ([...DATETIME_FIELDS, ...Object.keys(LABELS)] as (keyof EventInput)[]).find((k) => keys.includes(k)) ?? keys[0];
+    if (first) setFocus(first, { shouldSelect: false });
   }
 
   async function submit(data: EventInput) {
     setServerError(null);
-    setSummary([]);
+    setSummaryKeys([]);
     try {
       const result = await onSubmit(data);
       if (result.ok && result.id) {
@@ -150,48 +151,77 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
         router.refresh();
         return;
       }
-      for (const [k, msgs] of Object.entries(result.fields ?? {})) setError(k as keyof EventInput, { message: msgs[0] });
+      const fieldEntries = Object.entries(result.fields ?? {});
+      for (const [k, msgs] of fieldEntries) {
+        if (msgs?.[0]) setError(k as keyof EventInput, { message: msgs[0] });
+      }
+      const keys = fieldEntries.map(([k]) => k as keyof EventInput);
+      setSummaryKeys(keys);
       setServerError(result.error ?? "Could not save the event.");
+      if (keys[0]) setFocus(keys[0], { shouldSelect: false });
+      else requestAnimationFrame(() => alertRef.current?.focus());
     } catch {
       setServerError("Could not save the event. Check your connection and try again.");
+      requestAnimationFrame(() => alertRef.current?.focus());
     }
   }
 
+  const aria = (id: keyof EventInput, hasHint = false) => ({
+    "aria-invalid": errors[id] ? true : undefined,
+    "aria-describedby": errors[id] || hasHint ? `${id}-msg` : undefined,
+  });
+
   const dt = (id: keyof EventInput, label: string, required = true, hint?: string) => (
     <F id={id} label={label} required={required} error={errors[id]?.message} hint={hint}>
-      <input id={id} type="datetime-local" {...register(id)} aria-invalid={errors[id] ? true : undefined} className="input min-w-0" />
+      <input id={id} type="datetime-local" {...register(id)} {...aria(id, Boolean(hint))} className="input min-w-0" />
     </F>
   );
 
+  const activeSummaryKeys = summaryKeys.filter((k) => errors[k]);
+
   return (
     <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-4 sm:gap-6 max-w-3xl" noValidate>
-      {summary.length > 0 && (
-        <div role="alert" className="scan-rejected text-sm">
-          <p className="font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4" aria-hidden="true" /> Fix {summary.length} field{summary.length === 1 ? "" : "s"} to continue</p>
-          <p className="mt-1">{summary.join(" · ")}</p>
+      {activeSummaryKeys.length > 0 && (
+        <div role="alert" tabIndex={-1} aria-labelledby="event-err-summary-title" className="scan-rejected text-sm outline-none">
+          <p id="event-err-summary-title" className="font-bold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" /> Fix {activeSummaryKeys.length} field{activeSummaryKeys.length === 1 ? "" : "s"} to continue
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {activeSummaryKeys.map((k) => (
+              <li key={k}>
+                <button
+                  type="button"
+                  onClick={() => setFocus(k, { shouldSelect: false })}
+                  className="underline underline-offset-2 font-semibold hover:opacity-80 text-left"
+                >
+                  {LABELS[k] ?? k}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
       <Section title="Event details">
         <F id="name" label="Event name" required error={errors.name?.message}>
-          <input id="name" {...register("name")} className="input" placeholder="Basic Life Support Refresher" />
+          <input id="name" {...register("name")} {...aria("name")} maxLength={160} className="input" placeholder="Basic Life Support Refresher" />
         </F>
         <F id="description" label="Description" error={errors.description?.message} hint="Shown on the public event page.">
-          <textarea id="description" {...register("description")} rows={3} className="input min-h-24 resize-y" placeholder="What students should know or bring…" />
+          <textarea id="description" {...register("description")} {...aria("description", true)} maxLength={4000} rows={3} className="input min-h-24 resize-y" placeholder="What students should know or bring…" />
         </F>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <F id="venue" label="Venue" required error={errors.venue?.message}>
-            <input id="venue" {...register("venue")} className="input" placeholder="Skills Lab 2, CON Building" />
+            <input id="venue" {...register("venue")} {...aria("venue")} maxLength={200} className="input" placeholder="Skills Lab 2, CON Building" />
           </F>
           <F id="organizer" label="Organizer" error={errors.organizer?.message}>
-            <input id="organizer" {...register("organizer")} className="input" placeholder="College of Nursing" />
+            <input id="organizer" {...register("organizer")} {...aria("organizer")} maxLength={160} className="input" placeholder="College of Nursing" />
           </F>
           <F id="capacity" label="Capacity" required error={errors.capacity?.message} hint="Maximum number of registrations.">
-            <input id="capacity" type="number" inputMode="numeric" min={1} {...register("capacity")} className="input" />
+            <input id="capacity" type="number" inputMode="numeric" min={1} max={100000} {...register("capacity")} {...aria("capacity", true)} className="input" />
           </F>
           <F id="status" label="Status" required error={errors.status?.message} hint="Only published events are visible to students.">
             <div className="relative">
-              <select id="status" {...register("status")} className="input appearance-none pr-9">
+              <select id="status" {...register("status")} {...aria("status", true)} className="input appearance-none pr-9">
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="cancelled">Cancelled</option>
@@ -205,7 +235,7 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       <Section title="Schedule" description="Enter times in the event's time zone.">
         <F id="timezone" label="Time zone" error={errors.timezone?.message}>
           <div className="relative">
-            <select id="timezone" {...register("timezone")} className="input appearance-none pr-9">
+            <select id="timezone" {...register("timezone")} {...aria("timezone")} className="input appearance-none pr-9">
               {TZ_OPTIONS.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>
             <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#4b6362] pointer-events-none" aria-hidden="true" />
@@ -239,19 +269,23 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
           <Toggle id="allowTimeOut" label="Time out" description="Scan students when leaving." field={register("allowTimeOut")} />
           <Toggle id="requireTimeOut" label="Require time out" description="Needed for complete attendance." field={register("requireTimeOut")} />
         </div>
-        {errors.allowTimeIn?.message && <p className="field-error -mt-2" role="alert">{errors.allowTimeIn.message}</p>}
+        {errors.allowTimeIn?.message && (
+          <p className="field-error -mt-2 flex items-center gap-1.5" role="alert">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.allowTimeIn.message}
+          </p>
+        )}
         <F id="timeOutQrTtlMinutes" label="Time-out QR valid for (minutes)" required error={errors.timeOutQrTtlMinutes?.message} className="sm:max-w-xs">
-          <input id="timeOutQrTtlMinutes" type="number" inputMode="numeric" min={1} max={1440} {...register("timeOutQrTtlMinutes")} className="input" />
+          <input id="timeOutQrTtlMinutes" type="number" inputMode="numeric" min={1} max={1440} {...register("timeOutQrTtlMinutes")} {...aria("timeOutQrTtlMinutes")} className="input" />
         </F>
       </Section>
 
       <Section title="Registration form" description="What students must enter when registering.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <F id="studentIdHint" label="Student ID hint" error={errors.studentIdHint?.message} hint="Shown under the Student ID field.">
-            <input id="studentIdHint" {...register("studentIdHint")} className="input" placeholder="e.g. 2020001234 (10 digits, no dash)" />
+            <input id="studentIdHint" {...register("studentIdHint")} {...aria("studentIdHint", true)} maxLength={120} className="input" placeholder="e.g. 2020001234 (10 digits, no dash)" />
           </F>
           <F id="studentIdPattern" label="Student ID pattern" required error={errors.studentIdPattern?.message} hint="Advanced: regular expression. ^[0-9]{10}$ = 10 digits.">
-            <input id="studentIdPattern" {...register("studentIdPattern")} className="input font-mono" spellCheck={false} autoCapitalize="none" />
+            <input id="studentIdPattern" {...register("studentIdPattern")} {...aria("studentIdPattern", true)} maxLength={200} className="input font-mono" spellCheck={false} autoCapitalize="none" />
           </F>
         </div>
         <div>
@@ -264,13 +298,13 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
         </div>
       </Section>
 
-      {serverError && <div role="alert" className="scan-rejected text-sm font-semibold">{serverError}</div>}
+      {serverError && <div ref={alertRef} role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverError}</div>}
 
       {/* Sticky action bar: stays above the mobile tab bar, inline on desktop. */}
       <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-4 z-10 -mx-4 sm:mx-0 px-4 py-3 sm:p-3 bg-white/95 backdrop-blur border-y sm:border border-[#dce7e5] sm:rounded-2xl shadow-[0_-4px_16px_rgb(11_46_47/0.06)] flex gap-3">
         <Link href={cancelHref} className="btn-secondary btn-lg flex-1 sm:flex-none">Cancel</Link>
         <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg flex-[2] sm:flex-none sm:min-w-44">
-          {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : submitLabel}
+          {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Saving…</> : submitLabel}
         </button>
         {isDirty && <span className="hidden sm:flex items-center text-xs text-[#4b6362]">Unsaved changes</span>}
       </div>

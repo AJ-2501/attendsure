@@ -133,16 +133,21 @@ export const manualAttendanceSchema = z.object({
 });
 
 export const lookupSchema = z.object({
-  eventId: z.string().uuid(),
-  query: z.string().trim().min(3).max(40),
+  eventId: z.string().uuid("Select an event"),
+  query: z.string().trim().min(3, "Enter a student ID or reference code (at least 3 characters)").max(40, "Search query is too long"),
 });
 
-export const correctionSchema = z.object({
-  registrationId: z.string().uuid(),
-  timeIn: z.string().datetime({ offset: true }).nullable(),
-  timeOut: z.string().datetime({ offset: true }).nullable(),
-  reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
-});
+export const correctionSchema = z
+  .object({
+    registrationId: z.string().uuid(),
+    timeIn: z.string().datetime({ offset: true }).nullable(),
+    timeOut: z.string().datetime({ offset: true }).nullable(),
+    reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
+  })
+  .refine((v) => !v.timeIn || !v.timeOut || new Date(v.timeOut).getTime() >= new Date(v.timeIn).getTime(), {
+    path: ["timeOut"],
+    message: "Time out cannot be earlier than time in",
+  });
 
 export const reasonSchema = z.object({
   reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
@@ -151,16 +156,16 @@ export const reasonSchema = z.object({
 export const reissueSchema = z.object({
   registrationId: z.string().uuid(),
   action: attendanceActionSchema,
-  reason: z.string().trim().min(5).max(500),
+  reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
 });
 
 const dt = z.string().datetime({ offset: true, message: "Invalid date/time" });
 export const eventSchema = z
   .object({
-    name: z.string().trim().min(3).max(160),
-    description: z.string().trim().max(4000).default(""),
-    venue: z.string().trim().min(2).max(200),
-    organizer: z.string().trim().max(160).default(""),
+    name: z.string().trim().min(3, "Enter an event name (at least 3 characters)").max(160, "Event name is too long (max 160 characters)"),
+    description: z.string().trim().max(4000, "Description is too long (max 4000 characters)").default(""),
+    venue: z.string().trim().min(2, "Enter a venue").max(200, "Venue is too long (max 200 characters)"),
+    organizer: z.string().trim().max(160, "Organizer is too long (max 160 characters)").default(""),
     timezone: z.string().refine((tz) => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: tz });
@@ -177,15 +182,23 @@ export const eventSchema = z
     timeInClosesAt: dt,
     timeOutOpensAt: dt.nullable().default(null),
     timeOutClosesAt: dt.nullable().default(null),
-    timeOutQrTtlMinutes: z.coerce.number().int().min(1).max(1440),
-    capacity: z.coerce.number().int().min(1).max(100000),
+    timeOutQrTtlMinutes: z.coerce
+      .number({ message: "Enter a number of minutes" })
+      .int("Use a whole number")
+      .min(1, "Must be at least 1 minute")
+      .max(1440, "Must be at most 1440 minutes (24 hours)"),
+    capacity: z.coerce
+      .number({ message: "Enter a capacity" })
+      .int("Use a whole number")
+      .min(1, "Capacity must be at least 1")
+      .max(100000, "Capacity cannot exceed 100,000"),
     allowTimeIn: z.boolean().default(true),
     allowTimeOut: z.boolean().default(true),
     requireTimeOut: z.boolean().default(true),
     studentIdPattern: z
       .string()
-      .min(2)
-      .max(200)
+      .min(2, "Enter a regular expression pattern")
+      .max(200, "Pattern is too long")
       .refine((p) => {
         try {
           new RegExp(p);
@@ -194,7 +207,7 @@ export const eventSchema = z
           return false;
         }
       }, "Invalid regular expression"),
-    studentIdHint: z.string().max(120).default(""),
+    studentIdHint: z.string().max(120, "Hint is too long (max 120 characters)").default(""),
     requiredFields: requiredFieldsSchema,
     status: z.enum(["draft", "published", "cancelled"]),
   })
@@ -230,6 +243,18 @@ export const roleSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
+/** Email + password sign-in validation. */
+export const signInSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Enter your email address.")
+    .email("Enter a valid email, like name@nursing.edu.ph.")
+    .max(254, "Email address is too long."),
+  password: z.string().min(1, "Enter your password.").max(72, "Password is too long."),
+});
+export type SignInInput = z.input<typeof signInSchema>;
+
 /** Student account creation: proves ownership with a reference code from one of their registrations. */
 export const studentSignupSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address").max(254),
@@ -250,6 +275,10 @@ export const studentSignupSchema = z.object({
     .regex(/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Reference codes look like SA-XXXX-XXXX"),
 });
 export type StudentSignupInput = z.input<typeof studentSignupSchema>;
+
+/** Claiming an existing registration from the student dashboard. */
+export const claimRegistrationSchema = studentSignupSchema.pick({ studentId: true, referenceCode: true });
+export type ClaimRegistrationInput = z.input<typeof claimRegistrationSchema>;
 
 /** Email + password used when a student creates their account while registering. */
 export const accountSchema = studentSignupSchema.pick({ email: true, password: true });

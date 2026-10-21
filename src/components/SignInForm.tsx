@@ -1,26 +1,28 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { signInSchema, type SignInInput } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/client";
 
 const STAFF_ROLES = ["super_admin", "event_admin", "scanner_staff"];
+const INVALID_CREDENTIALS_MESSAGE = "Incorrect email or password.";
 
 function friendlyError(message: string) {
-  if (/invalid login|invalid credentials/i.test(message)) return "Incorrect email or password.";
-  if (/email not confirmed/i.test(message)) return "Your email isn't confirmed yet. Check your inbox.";
+  if (/invalid login|invalid credentials|email not confirmed|user not found/i.test(message)) {
+    return INVALID_CREDENTIALS_MESSAGE;
+  }
   if (/rate|too many/i.test(message)) return "Too many attempts. Please wait a minute and try again.";
   if (/fetch|network/i.test(message)) return "Can't reach the server. Check your connection.";
-  return "Sign-in failed. Please try again.";
+  return INVALID_CREDENTIALS_MESSAGE;
 }
 
 /** Only allow same-site relative redirects (prevents open redirects via ?next=). */
 function safeNext(next: string | null | undefined, fallback: string) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
 }
-
-type Errors = { email?: string; password?: string; form?: React.ReactNode };
 
 export default function SignInForm({
   expect,
@@ -29,7 +31,7 @@ export default function SignInForm({
   emailPlaceholder,
   initialError = null,
 }: {
-  /** Which kind of account this page is for. A mismatch is rejected with guidance instead of a silent redirect. */
+  /** Which kind of account this page is for. Role mismatches return a generic credential error to prevent account enumeration. */
   expect: "student" | "staff";
   redirectTo: string;
   next?: string | null;
@@ -37,62 +39,78 @@ export default function SignInForm({
   initialError?: string | null;
 }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
-  const [errors, setErrors] = useState<Errors>(initialError ? { form: initialError } : {});
-  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(initialError);
+  const alertRef = useRef<HTMLDivElement>(null);
 
-  function validate(): Errors {
-    const e: Errors = {};
-    if (!email.trim()) e.email = "Enter your email address.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = "Enter a valid email, like name@nursing.edu.ph.";
-    if (!password) e.password = "Enter your password.";
-    return e;
+  const {
+    register,
+    handleSubmit,
+    setFocus,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
+    mode: "onTouched",
+    defaultValues: { email: "", password: "" },
+  });
+
+  function showFormError(msg: string) {
+    setFormError(msg);
+    requestAnimationFrame(() => alertRef.current?.focus());
   }
 
-  async function onSubmit(ev: React.FormEvent) {
-    ev.preventDefault();
-    const v = validate();
-    setErrors(v);
-    if (v.email || v.password) {
-      document.getElementById(v.email ? "email" : "password")?.focus();
-      return;
-    }
-    setLoading(true);
+  async function onSubmit(values: SignInInput) {
+    setFormError(null);
     const supabase = createClient();
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: values.email.trim(),
+        password: values.password,
+      });
       if (error || !data.user) {
-        setErrors({ form: friendlyError(error?.message ?? "") });
+        showFormError(friendlyError(error?.message ?? ""));
         return;
       }
-      // Check the account type before navigating (profiles RLS allows reading your own row).
-      const { data: profile } = await supabase.from("profiles").select("role").eq("auth_user_id", data.user.id).maybeSingle<{ role: string }>();
+      // Verify the account role matches this portal before navigating.
+      // Return a uniform "Incorrect email or password." on mismatch so credentials cannot be used to enumerate roles.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("auth_user_id", data.user.id)
+        .maybeSingle<{ role: string }>();
       const isStaff = profile ? STAFF_ROLES.includes(profile.role) : null;
-      if (isStaff !== null && isStaff !== (expect === "staff")) {
+      if (isStaff === null || isStaff !== (expect === "staff")) {
         await supabase.auth.signOut();
-        setErrors({
-          form:
-            expect === "student" ? (
-              <>This is an admin account. Use <Link href="/login" className="underline font-bold">Admin sign in</Link> instead.</>
-            ) : (
-              <>This is a student account. Use <Link href="/student/login" className="underline font-bold">Student sign in</Link> to see your attendance.</>
-            ),
-        });
+        showFormError(INVALID_CREDENTIALS_MESSAGE);
         return;
       }
       router.replace(safeNext(next, redirectTo));
       router.refresh();
     } catch (err) {
-      setErrors({ form: friendlyError(err instanceof Error ? err.message : "") });
-    } finally {
-      setLoading(false);
+      showFormError(friendlyError(err instanceof Error ? err.message : ""));
     }
   }
 
+  const emailField = register("email", {
+    onChange: () => {
+      if (formError) setFormError(null);
+    },
+  });
+  const passwordField = register("password", {
+    onChange: () => {
+      if (formError) setFormError(null);
+    },
+  });
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    <form
+      onSubmit={handleSubmit(onSubmit, (errs) => {
+        const first = Object.keys(errs)[0] as keyof SignInInput | undefined;
+        if (first) setFocus(first);
+      })}
+      className="flex flex-col gap-4"
+      noValidate
+    >
       <div>
         <label className="label" htmlFor="email">Email address</label>
         <input
@@ -102,17 +120,18 @@ export default function SignInForm({
           autoComplete="email"
           autoCapitalize="none"
           spellCheck={false}
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (errors.email) setErrors((x) => ({ ...x, email: undefined }));
-          }}
+          maxLength={254}
+          {...emailField}
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? "email-err" : undefined}
           className="input bg-[#f3f7f6]"
           placeholder={emailPlaceholder}
         />
-        {errors.email && <p id="email-err" className="field-error" role="alert">{errors.email}</p>}
+        {errors.email?.message && (
+          <p id="email-err" className="field-error flex items-center gap-1.5" role="alert">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.email.message}
+          </p>
+        )}
       </div>
       <div>
         <label className="label" htmlFor="password">Password</label>
@@ -121,11 +140,8 @@ export default function SignInForm({
             id="password"
             type={show ? "text" : "password"}
             autoComplete="current-password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password) setErrors((x) => ({ ...x, password: undefined }));
-            }}
+            maxLength={72}
+            {...passwordField}
             aria-invalid={errors.password ? true : undefined}
             aria-describedby={errors.password ? "password-err" : undefined}
             className="input bg-[#f3f7f6] pr-14"
@@ -138,21 +154,38 @@ export default function SignInForm({
             aria-pressed={show}
             className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100"
           >
-            {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            {show ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
           </button>
         </div>
-        {errors.password && <p id="password-err" className="field-error" role="alert">{errors.password}</p>}
+        {errors.password?.message && (
+          <p id="password-err" className="field-error flex items-center gap-1.5" role="alert">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.password.message}
+          </p>
+        )}
       </div>
 
-      {errors.form && (
-        <div role="alert" className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 rounded-xl px-3 py-2.5">
+      {formError && (
+        <div
+          ref={alertRef}
+          role="alert"
+          tabIndex={-1}
+          className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2.5 outline-none"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{errors.form}</span>
+          <span>{formError}</span>
         </div>
       )}
 
-      <button type="submit" disabled={loading} className="btn-primary btn-lg w-full mt-1 shadow-[0_8px_20px_rgb(15_118_110/0.3)]">
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</> : <>Sign in <ArrowRight className="w-[18px] h-[18px]" /></>}
+      <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg w-full mt-1 shadow-[0_8px_20px_rgb(15_118_110/0.3)]">
+        {isSubmitting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Signing in…
+          </>
+        ) : (
+          <>
+            Sign in <ArrowRight className="w-[18px] h-[18px]" aria-hidden="true" />
+          </>
+        )}
       </button>
     </form>
   );

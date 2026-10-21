@@ -250,6 +250,14 @@
     border-color: var(--color-brand-500);
     box-shadow: 0 0 0 3px oklch(0.62 0.110 185 / 0.25);
   }
+  .input[aria-invalid="true"] {
+    border-color: var(--color-danger-600);
+    background-color: #fffafa;
+  }
+  .input[aria-invalid="true"]:focus {
+    border-color: var(--color-danger-600);
+    box-shadow: 0 0 0 3px oklch(0.55 0.210 25 / 0.2);
+  }
   .input:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .label {

@@ -14,7 +14,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
         redirectTo="/admin"
         next={next}
         emailPlaceholder="name@nursing.edu.ph"
-        initialError={error === "not_staff" ? "This account does not have admin access." : null}
+        initialError={error === "not_staff" ? "Incorrect email or password." : null}
       />
       <p className="text-[13px] text-center text-[#4b6362]">
         Forgot your password? Contact the College of Nursing office.

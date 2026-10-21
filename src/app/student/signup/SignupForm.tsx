@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,12 +34,14 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "signing-in">("idle");
+  const alertRef = useRef<HTMLDivElement>(null);
   const {
     register,
     handleSubmit,
     setError,
     setFocus,
-    formState: { errors, isSubmitting },
+    trigger,
+    formState: { errors, isSubmitting, touchedFields },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     mode: "onTouched",
@@ -59,8 +61,9 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         const fields = (json.error?.fields ?? {}) as Record<string, string[]>;
         const names = Object.keys(fields);
         for (const name of names) setError(name as keyof FormValues, { message: fields[name][0] });
-        if (names[0]) setFocus(names[0] as keyof FormValues);
         setFormError(json.error?.message ?? "Couldn't create your account. Please try again.");
+        if (names[0]) setFocus(names[0] as keyof FormValues);
+        else requestAnimationFrame(() => alertRef.current?.focus());
         return;
       }
       setPhase("signing-in");
@@ -75,14 +78,25 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
       router.refresh();
     } catch {
       setFormError("Can't reach the server. Check your connection and try again.");
+      requestAnimationFrame(() => alertRef.current?.focus());
     }
   }
 
-  const aria = (name: keyof FormValues) => ({ "aria-invalid": errors[name] ? true : undefined, "aria-describedby": `${name}-msg` });
+  const aria = (name: keyof FormValues, hasHint = false) => ({
+    "aria-invalid": errors[name] ? true : undefined,
+    "aria-describedby": errors[name] || hasHint ? `${name}-msg` : undefined,
+  });
   const busy = isSubmitting || phase === "signing-in";
 
   return (
-    <form onSubmit={handleSubmit(onSubmit, (errs) => setFocus(Object.keys(errs)[0] as keyof FormValues))} className="flex flex-col gap-5" noValidate>
+    <form
+      onSubmit={handleSubmit(onSubmit, (errs) => {
+        const first = Object.keys(errs)[0] as keyof FormValues | undefined;
+        if (first) setFocus(first);
+      })}
+      className="flex flex-col gap-5"
+      noValidate
+    >
       {event && (
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-3.5 text-sm text-[#23403f]">
           You&apos;ll also be registered for <strong>{event.name}</strong> and get its QR pass right away.
@@ -94,14 +108,14 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
           <UserRound className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your details
         </legend>
         <Field id="fullName" label="Full name" hint="e.g. Maria Clara Santos" error={errors.fullName?.message}>
-          <input id="fullName" {...register("fullName")} {...aria("fullName")} autoComplete="name" className="input bg-[#f3f7f6]" placeholder="First and last name" />
+          <input id="fullName" {...register("fullName")} {...aria("fullName", true)} autoComplete="name" maxLength={120} className="input bg-[#f3f7f6]" placeholder="First and last name" />
         </Field>
         <Field id="studentId" label="Student ID" hint={`10 digits, no dash — e.g. ${STUDENT_ID_EXAMPLE}`} error={errors.studentId?.message}>
-          <input id="studentId" {...register("studentId")} {...aria("studentId")} inputMode="numeric" autoComplete="off" maxLength={12} spellCheck={false} className="input font-mono bg-[#f3f7f6]" placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} />
+          <input id="studentId" {...register("studentId")} {...aria("studentId", true)} inputMode="numeric" autoComplete="off" maxLength={12} spellCheck={false} className="input font-mono bg-[#f3f7f6]" placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} />
         </Field>
         <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
           <Field id="section" label="Section" hint="e.g. BSN 2-B" error={errors.section?.message}>
-            <input id="section" {...register("section")} {...aria("section")} autoCapitalize="characters" className="input bg-[#f3f7f6]" placeholder="e.g. BSN 2-B" />
+            <input id="section" {...register("section")} {...aria("section", true)} autoCapitalize="characters" maxLength={40} className="input bg-[#f3f7f6]" placeholder="e.g. BSN 2-B" />
           </Field>
           <Field id="yearLevel" label="Year level" error={errors.yearLevel?.message}>
             <div className="relative">
@@ -114,7 +128,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
           </Field>
         </div>
         <Field id="department" label="College / department" error={errors.department?.message}>
-          <input id="department" {...register("department")} {...aria("department")} className="input bg-[#f3f7f6]" />
+          <input id="department" {...register("department")} {...aria("department")} maxLength={120} className="input bg-[#f3f7f6]" />
         </Field>
       </fieldset>
 
@@ -123,38 +137,59 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
           <ShieldCheck className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your account
         </legend>
         <Field id="email" label="Email address" hint="e.g. you@nursing.edu.ph" error={errors.email?.message}>
-          <input id="email" type="email" {...register("email")} {...aria("email")} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} className="input bg-[#f3f7f6]" placeholder="you@nursing.edu.ph" />
+          <input id="email" type="email" {...register("email")} {...aria("email", true)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input bg-[#f3f7f6]" placeholder="you@nursing.edu.ph" />
         </Field>
         <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
           <div className="relative">
-            <input id="password" type={show ? "text" : "password"} {...register("password")} {...aria("password")} autoComplete="new-password" className="input bg-[#f3f7f6] pr-14" />
+            <input
+              id="password"
+              type={show ? "text" : "password"}
+              {...register("password", {
+                onChange: () => {
+                  if (touchedFields.confirmPassword) void trigger("confirmPassword");
+                },
+              })}
+              {...aria("password", true)}
+              autoComplete="new-password"
+              maxLength={72}
+              className="input bg-[#f3f7f6] pr-14"
+            />
             <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide passwords" : "Show passwords"} aria-pressed={show} className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
-              {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {show ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
             </button>
           </div>
         </Field>
         <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword?.message}>
-          <input id="confirmPassword" type={show ? "text" : "password"} {...register("confirmPassword")} {...aria("confirmPassword")} autoComplete="new-password" className="input bg-[#f3f7f6]" />
+          <input id="confirmPassword" type={show ? "text" : "password"} {...register("confirmPassword")} {...aria("confirmPassword")} autoComplete="new-password" maxLength={72} className="input bg-[#f3f7f6]" />
         </Field>
       </fieldset>
 
       <div>
-        <label className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-[#f3f7f6] p-3.5">
-          <input type="checkbox" {...register("consent")} className="mt-0.5 w-[22px] h-[22px] shrink-0 accent-brand-600" />
+        <label htmlFor="consent" className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-[#f3f7f6] p-3.5">
+          <input id="consent" type="checkbox" {...register("consent")} {...aria("consent")} className="mt-0.5 w-[22px] h-[22px] shrink-0 accent-brand-600" />
           <span className="text-[13px] leading-relaxed text-[#23403f]">I agree that my name and student ID are stored encrypted and used only for attendance, per the Data Privacy Act of 2012.</span>
         </label>
-        {errors.consent?.message && <p className="field-error" role="alert">{errors.consent.message}</p>}
+        {errors.consent?.message && (
+          <p id="consent-msg" className="field-error flex items-center gap-1.5" role="alert">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.consent.message}
+          </p>
+        )}
       </div>
 
       {formError && (
-        <div role="alert" className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 rounded-xl px-3 py-2.5">
+        <div
+          ref={alertRef}
+          role="alert"
+          tabIndex={-1}
+          className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2.5 outline-none"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-          {formError}
+          <span>{formError}</span>
         </div>
       )}
 
       <button type="submit" disabled={busy} className="btn-primary btn-lg w-full">
-        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening your dashboard…</> : "Create account"}
+        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Creating account…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Opening your dashboard…</> : "Create account"}
       </button>
     </form>
   );

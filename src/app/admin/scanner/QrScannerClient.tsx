@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown, SwitchCamera } from "lucide-react";
+import { AlertTriangle, Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown, SwitchCamera } from "lucide-react";
 import { clsx } from "clsx";
 import { ACTION_LABEL } from "@/lib/messages";
 
@@ -63,6 +63,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [manualQuery, setManualQuery] = useState("");
   const [manualReason, setManualReason] = useState("");
+  const [manualErrors, setManualErrors] = useState<{ query?: string; reason?: string }>({});
   const [manualLoading, setManualLoading] = useState(false);
 
   // The decoder callback lives as long as the camera; read current settings through refs
@@ -233,7 +234,15 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
 
   async function submitManual(e: React.FormEvent) {
     e.preventDefault();
-    if (!manualQuery.trim() || !eventId) return;
+    const errs: { query?: string; reason?: string } = {};
+    if (manualQuery.trim().length < 3) errs.query = "Enter a student ID or reference code (at least 3 characters).";
+    if (manualReason.trim().length < 5) errs.reason = "Provide a reason of at least 5 characters.";
+    setManualErrors(errs);
+    if (errs.query || errs.reason) {
+      document.getElementById(errs.query ? "manual-query" : "manual-reason")?.focus();
+      return;
+    }
+    if (!eventId) return;
     setManualLoading(true);
     try {
       const lookupRes = await fetch(`/api/participants/lookup?q=${encodeURIComponent(manualQuery.trim())}&eventId=${eventId}`);
@@ -248,7 +257,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
       const res = await fetch("/api/attendance/manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, registrationId: lookupJson.data.registrationId, action: manualAction, reason: manualReason.trim() || "Manual entry at the door", idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ eventId, registrationId: lookupJson.data.registrationId, action: manualAction, reason: manualReason.trim(), idempotencyKey: crypto.randomUUID() }),
       });
       const json = await res.json();
       if (json.ok) {
@@ -273,11 +282,11 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-ink">Scanner</h1>
           <div className={clsx("flex items-center gap-1.5 text-xs font-semibold mt-0.5", online ? "text-success-700" : "text-danger-600")} role="status">
-            {online ? <><Wifi className="w-3.5 h-3.5" /> Online</> : <><WifiOff className="w-3.5 h-3.5" /> Offline — scans will not be recorded</>}
+            {online ? <><Wifi className="w-3.5 h-3.5" aria-hidden="true" /> Online</> : <><WifiOff className="w-3.5 h-3.5" aria-hidden="true" /> Offline — scans will not be recorded</>}
           </div>
         </div>
         <button onClick={() => setSoundEnabled((s) => !s)} className="btn-secondary w-11 h-11 p-0" aria-label={soundEnabled ? "Mute scan sounds" : "Unmute scan sounds"} aria-pressed={soundEnabled}>
-          {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          {soundEnabled ? <Volume2 className="w-5 h-5" aria-hidden="true" /> : <VolumeX className="w-5 h-5" aria-hidden="true" />}
         </button>
       </div>
 
@@ -288,7 +297,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
             {events.length === 0 && <option value="">No active events</option>}
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
           </select>
-          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#4b6362] pointer-events-none" />
+          <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#4b6362] pointer-events-none" aria-hidden="true" />
         </div>
       </div>
 
@@ -318,7 +327,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
           {!scanning && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-              <Camera className="w-12 h-12 opacity-40" />
+              <Camera className="w-12 h-12 opacity-40" aria-hidden="true" />
               <p className="text-sm text-[#cfe3e0]">Camera off</p>
             </div>
           )}
@@ -336,7 +345,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
           )}
           {pending && (
             <div className="absolute inset-0 flex items-center justify-center bg-ink/70">
-              <Loader2 className="w-10 h-10 text-white animate-spin" />
+              <Loader2 className="w-10 h-10 text-white animate-spin" aria-hidden="true" />
             </div>
           )}
         </div>
@@ -344,15 +353,15 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
         <div className="p-3">
           {!scanning ? (
             <button onClick={() => startCamera()} disabled={!eventId || starting} className="btn-primary btn-lg w-full">
-              {starting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />} {starting ? "Starting camera…" : "Start camera"}
+              {starting ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : <Camera className="w-5 h-5" aria-hidden="true" />} {starting ? "Starting camera…" : "Start camera"}
             </button>
           ) : (
             <div className="flex gap-2">
               <button onClick={stopCamera} className="btn btn-lg flex-1 bg-white/10 text-white hover:bg-white/20">
-                <CameraOff className="w-5 h-5" /> Stop camera
+                <CameraOff className="w-5 h-5" aria-hidden="true" /> Stop camera
               </button>
               <button onClick={flipCamera} className="btn btn-lg w-14 px-0 bg-white/10 text-white hover:bg-white/20" aria-label="Switch camera">
-                <SwitchCamera className="w-5 h-5" />
+                <SwitchCamera className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -366,7 +375,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
           <div className={clsx("rounded-2xl p-4 border animate-fade-up", result.accepted ? "scan-accepted" : "scan-rejected")}>
             <div className="flex items-start gap-3">
               <div className={clsx("w-11 h-11 rounded-full flex items-center justify-center shrink-0", result.accepted ? "bg-success-700" : "bg-danger-600")}>
-                {result.accepted ? <CheckCircle className="w-6 h-6 text-white" /> : <XCircle className="w-6 h-6 text-white" />}
+                {result.accepted ? <CheckCircle className="w-6 h-6 text-white" aria-hidden="true" /> : <XCircle className="w-6 h-6 text-white" aria-hidden="true" />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-extrabold">
@@ -381,7 +390,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
                 )}
               </div>
               <button onClick={() => setResult(null)} className="btn-ghost w-11 h-11 p-0 -mr-1 -mt-1" aria-label="Dismiss result">
-                <XCircle className="w-5 h-5 opacity-60" />
+                <XCircle className="w-5 h-5 opacity-60" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -391,20 +400,55 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
       {/* Manual lookup */}
       <details className="card overflow-hidden group">
         <summary className="cursor-pointer min-h-14 px-5 font-semibold text-ink flex items-center gap-2 list-none">
-          <Search className="w-4 h-4" /> Manual entry
-          <ChevronDown className="w-4 h-4 ml-auto transition-transform group-open:rotate-180" />
+          <Search className="w-4 h-4" aria-hidden="true" /> Manual entry
+          <ChevronDown className="w-4 h-4 ml-auto transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
-        <form onSubmit={submitManual} className="px-5 pb-5 space-y-3">
+        <form onSubmit={submitManual} className="px-5 pb-5 space-y-3" noValidate>
           <div>
-            <label className="label" htmlFor="manual-query">Student ID or reference code</label>
-            <input id="manual-query" value={manualQuery} onChange={(e) => setManualQuery(e.target.value)} className="input font-mono" placeholder="2020001234 or SA-XXXX-XXXX" autoCapitalize="characters" />
+            <label className="label" htmlFor="manual-query">Student ID or reference code *</label>
+            <input
+              id="manual-query"
+              value={manualQuery}
+              onChange={(e) => {
+                setManualQuery(e.target.value);
+                if (manualErrors.query) setManualErrors((x) => ({ ...x, query: undefined }));
+              }}
+              maxLength={40}
+              aria-invalid={manualErrors.query ? true : undefined}
+              aria-describedby={manualErrors.query ? "manual-query-err" : undefined}
+              className="input font-mono"
+              placeholder="2020001234 or SA-XXXX-XXXX"
+              autoCapitalize="characters"
+            />
+            {manualErrors.query && (
+              <p id="manual-query-err" className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {manualErrors.query}
+              </p>
+            )}
           </div>
           <div>
             <label className="label" htmlFor="manual-reason">Reason *</label>
-            <input id="manual-reason" value={manualReason} onChange={(e) => setManualReason(e.target.value)} className="input" placeholder="QR pass damaged / phone battery dead" required />
+            <input
+              id="manual-reason"
+              value={manualReason}
+              onChange={(e) => {
+                setManualReason(e.target.value);
+                if (manualErrors.reason) setManualErrors((x) => ({ ...x, reason: undefined }));
+              }}
+              maxLength={500}
+              aria-invalid={manualErrors.reason ? true : undefined}
+              aria-describedby={manualErrors.reason ? "manual-reason-err" : undefined}
+              className="input"
+              placeholder="QR pass damaged / phone battery dead"
+            />
+            {manualErrors.reason && (
+              <p id="manual-reason-err" className="field-error flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {manualErrors.reason}
+              </p>
+            )}
           </div>
-          <button type="submit" disabled={manualLoading || !manualQuery.trim()} className="btn-primary btn-lg w-full">
-            {manualLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Looking up…</> : action === "auto" ? "Record attendance" : `Record ${ACTION_LABEL[action].toLowerCase()}`}
+          <button type="submit" disabled={manualLoading || !eventId} className="btn-primary btn-lg w-full">
+            {manualLoading ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Looking up…</> : action === "auto" ? "Record attendance" : `Record ${ACTION_LABEL[action].toLowerCase()}`}
           </button>
         </form>
       </details>
