@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { signInSchema, type SignInInput } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/client";
 
@@ -116,6 +116,8 @@ export default function SignInForm({
     >
       <div>
         <label className="label" htmlFor="email">Email address</label>
+        <div className="relative">
+        <Mail className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a9391] pointer-events-none" aria-hidden="true" />
         <input
           id="email"
           type="email"
@@ -127,9 +129,10 @@ export default function SignInForm({
           {...emailField}
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? "email-err" : undefined}
-          className="input bg-[#f3f7f6]"
+          className="input bg-[#f3f7f6] pl-11 focus:bg-white"
           placeholder={emailPlaceholder}
         />
+        </div>
         {errors.email?.message && (
           <p id="email-err" className="field-error flex items-center gap-1.5" role="alert">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.email.message}
@@ -139,6 +142,7 @@ export default function SignInForm({
       <div>
         <label className="label" htmlFor="password">Password</label>
         <div className="relative">
+          <LockKeyhole className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a9391] pointer-events-none" aria-hidden="true" />
           <input
             id="password"
             type={show ? "text" : "password"}
@@ -147,7 +151,7 @@ export default function SignInForm({
             {...passwordField}
             aria-invalid={errors.password ? true : undefined}
             aria-describedby={errors.password ? "password-err" : undefined}
-            className="input bg-[#f3f7f6] pr-14"
+            className="input bg-[#f3f7f6] pl-11 pr-14 focus:bg-white"
             placeholder="Enter your password"
           />
           <button
@@ -179,7 +183,7 @@ export default function SignInForm({
         </div>
       )}
 
-      <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg w-full mt-1 shadow-[0_8px_20px_rgb(15_118_110/0.3)]">
+      <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg btn-sheen w-full mt-1 shadow-[0_10px_24px_-8px_rgb(15_118_110/0.55)]">
         {isSubmitting ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Signing in…

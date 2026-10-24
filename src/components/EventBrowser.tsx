@@ -60,8 +60,8 @@ function EventCard({ item }: { item: EventItem }) {
   const time = formatTimeRange(e.starts_at, e.ends_at, e.timezone);
 
   return (
-    <article className="card relative p-4 flex gap-4 transition-shadow hover:shadow-[0_8px_24px_rgb(11_46_47/0.10)] focus-within:ring-2 focus-within:ring-brand-500">
-      <div className="w-14 shrink-0 h-[68px] rounded-[14px] bg-brand-100 flex flex-col items-center justify-center" aria-hidden="true">
+    <article className="card relative p-4 flex gap-4 transition-[box-shadow,transform,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-12px_rgb(11_46_47/0.18)] focus-within:ring-2 focus-within:ring-brand-500">
+      <div className="w-14 shrink-0 h-[68px] rounded-[14px] bg-gradient-to-b from-brand-50 to-brand-100 ring-1 ring-brand-200/70 flex flex-col items-center justify-center" aria-hidden="true">
         <span className="text-[11px] font-bold tracking-wider text-brand-700">{mon}</span>
         <span className="text-[22px] font-extrabold leading-none text-ink">{day}</span>
         <span className="text-[11px] font-semibold text-brand-700">{weekday}</span>

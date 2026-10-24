@@ -26,25 +26,3 @@ export function Logo({ size = "md", tone = "light", className }: { size?: "sm" |
     </span>
   );
 }
-
-const ECG_PATH =
-  "M0 70H70l8-8 8 8h26l6 10 10-62 10 82 8-30h34l10-12 12 12h56l8-8 8 8h26l6 10 10-62 10 82 8-30h34l10-12 12 12h14";
-
-/** Animated patient-monitor heartbeat line. */
-export function EcgLine({ className, animated = true }: { className?: string; animated?: boolean }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 390 120" className={className}>
-      <path d={ECG_PATH} fill="none" stroke="rgb(94 234 212 / 0.16)" strokeWidth="2" />
-      <path
-        d={ECG_PATH}
-        fill="none"
-        stroke="var(--color-coral)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        pathLength={1000}
-        className={animated ? "ecg-trace" : undefined}
-      />
-    </svg>
-  );
-}

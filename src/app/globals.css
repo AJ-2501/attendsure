@@ -359,36 +359,111 @@
     background-size: 22px 22px;
   }
 
-  /* ── Medical VFX (login) ──────────────────────────────────────── */
-  @keyframes ecg-trace { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
-  @keyframes heart-beat {
-    0%, 100% { transform: scale(1); }
-    12% { transform: scale(1.14); }
-    24% { transform: scale(1); }
-    36% { transform: scale(1.08); }
-    60% { transform: scale(1); }
+  /* Landing hero: deep ink with soft teal/coral glows and a grid that fades out at the edges */
+  .hero-aurora {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--color-ink);
+    background-image:
+      radial-gradient(60% 70% at 78% 40%, rgb(45 212 191 / 0.22), transparent 70%),
+      radial-gradient(45% 55% at 8% 100%, rgb(242 113 90 / 0.10), transparent 70%),
+      radial-gradient(50% 60% at 30% 0%, rgb(125 211 252 / 0.08), transparent 70%);
   }
-  @keyframes pulse-out { 0% { transform: scale(0.8); opacity: 0.55; } 100% { transform: scale(1.9); opacity: 0; } }
-  @keyframes float-up {
-    0% { transform: translateY(0) rotate(0); opacity: 0; }
-    15% { opacity: 0.6; }
-    100% { transform: translateY(-160px) rotate(90deg); opacity: 0; }
+  .hero-aurora::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(rgb(94 234 212 / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(94 234 212 / 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(75% 80% at 50% 40%, #000 30%, transparent 85%);
   }
-  @keyframes blink-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-  @keyframes sheet-up { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+  .hero-aurora::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(94 234 212 / 0.35), transparent);
+  }
+  .text-gradient-mint {
+    background: linear-gradient(100deg, #5EEAD4 0%, #99f6e4 45%, #7dd3fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glass-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 1rem;
+    background: rgb(11 46 47 / 0.62);
+    border: 1px solid rgb(255 255 255 / 0.14);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.45);
+    color: #fff;
+  }
+  @keyframes float-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .float-soft { animation: float-soft 6s ease-in-out infinite; }
+  @keyframes live-dot { 0% { box-shadow: 0 0 0 0 rgb(94 234 212 / 0.55); } 100% { box-shadow: 0 0 0 8px rgb(94 234 212 / 0); } }
+  .live-dot { animation: live-dot 1.8s ease-out infinite; }
 
-  .ecg-trace { stroke-dasharray: 1000; animation: ecg-trace 2.8s linear infinite; filter: drop-shadow(0 0 6px rgb(242 113 90 / 0.8)); }
-  .heart-beat { animation: heart-beat 1.25s ease-in-out infinite; transform-origin: center; }
-  .pulse-out { animation: pulse-out 1.25s ease-out infinite; }
-  .float-up { animation: float-up 7s linear infinite; }
-  .blink-soft { animation: blink-soft 1.25s ease-in-out infinite; }
+  /* ── Sign-in surface ──────────────────────────────────────────── */
+  .auth-surface { background-color: #ffffff; }
+  @media (min-width: 64rem) {
+    .auth-surface {
+      background-color: #eff5f4;
+      background-image:
+        radial-gradient(45% 50% at 90% 5%, rgb(94 234 212 / 0.20), transparent 70%),
+        radial-gradient(45% 45% at 5% 100%, rgb(227 201 140 / 0.18), transparent 70%),
+        radial-gradient(rgb(11 46 47 / 0.07) 1px, transparent 1px);
+      background-size: auto, auto, 20px 20px;
+    }
+    .auth-card {
+      background: rgb(255 255 255 / 0.92);
+      border: 1px solid #dce7e5;
+      border-radius: 1.75rem;
+      padding: 2.25rem;
+      box-shadow: 0 1px 2px rgb(11 46 47 / 0.04), 0 24px 60px -24px rgb(11 46 47 / 0.25);
+      backdrop-filter: blur(8px);
+    }
+  }
+  @keyframes auth-in-right { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+  @keyframes auth-in-left { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+  .auth-enter-right { animation: auth-in-right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .auth-enter-left { animation: auth-in-left 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .auth-enter-up { animation: fadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .auth-stagger > * { animation: fadeUp 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .auth-stagger > :nth-child(2) { animation-delay: 70ms; }
+  .auth-stagger > :nth-child(3) { animation-delay: 140ms; }
+  .auth-stagger > :nth-child(4) { animation-delay: 210ms; }
+  .auth-stagger > :nth-child(n + 5) { animation-delay: 280ms; }
+
+  /* Light sweep across a button on hover */
+  .btn-sheen { position: relative; overflow: hidden; isolation: isolate; }
+  .btn-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
+  }
+  .btn-sheen:hover::after { transform: translateX(120%); }
+
+  /* ── Motion ───────────────────────────────────────────────────── */
+  @keyframes sheet-up { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes scan-sweep { 0%, 100% { top: 12%; } 50% { top: 88%; } }
   .scan-sweep { animation: scan-sweep 2.4s ease-in-out infinite; }
   .animate-sheet-up { animation: sheet-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-    .ecg-trace { stroke-dashoffset: 0; }
   }
 
   /* ── Mobile bottom tab bar ─────────────────────────────────────── */

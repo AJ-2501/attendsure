@@ -21,7 +21,7 @@ export default async function StudentSignupPage({ searchParams }: { searchParams
   const loginHref = `/student/login${event ? `?next=${encodeURIComponent(`/me?register=${event.id}`)}` : ""}`;
 
   return (
-    <AuthShell role="student" title="Create your student account" subtitle="Sign up once. Get a QR pass for any event with one tap." tagline="Your attendance, assured.">
+    <AuthShell role="student" title="Create your student account" subtitle="Sign up once. Get a QR pass for any event with one tap.">
       <SignupForm event={event} />
       <p className="text-[13px] text-center text-[#4b6362]">
         Already have an account?{" "}
