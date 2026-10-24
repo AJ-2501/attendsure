@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Admin sign in", robots: { index: fal
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
   const { error, next } = await searchParams;
   return (
-    <AuthShell role="admin" title="Admin sign in" subtitle="For clinical instructors, coordinators and scanner staff.">
+    <AuthShell role="admin" title="Admin sign in" subtitle="For Coordinators, Instructors, Officers.">
       <SignInForm
         expect="staff"
         redirectTo="/admin"

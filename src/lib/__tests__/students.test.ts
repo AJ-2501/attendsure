@@ -29,12 +29,12 @@ describe("10-digit student ID format", () => {
 });
 
 describe("Student signup schema", () => {
-  const valid = { email: "Maria@Nursing.edu.ph ", password: "nurse2024", studentId: "2020001234", referenceCode: "sa-k7qm-4xpd" };
+  const valid = { email: "mcsantos.student@ua.edu.ph", password: "nurse2024", studentId: "2020001234", referenceCode: "sa-k7qm-4xpd" };
 
   it("normalizes email and reference code", () => {
-    const r = studentSignupSchema.safeParse(valid);
+    const r = studentSignupSchema.safeParse({ ...valid, email: "  MCSantos.Student@UA.EDU.PH  " });
     expect(r.success).toBe(true);
-    expect(r.data?.email).toBe("maria@nursing.edu.ph");
+    expect(r.data?.email).toBe("mcsantos.student@ua.edu.ph");
     expect(r.data?.referenceCode).toBe("SA-K7QM-4XPD");
   });
   it.each([
@@ -42,6 +42,9 @@ describe("Student signup schema", () => {
     ["password without a number", { password: "nursingstudent" }],
     ["bad reference code", { referenceCode: "SA-123" }],
     ["invalid email", { email: "not-an-email" }],
+    ["non-university email", { email: "maria@nursing.edu.ph" }],
+    ["commercial email", { email: "student@gmail.com" }],
+    ["missing student subdomain", { email: "mcsantos@ua.edu.ph" }],
   ])("rejects %s", (_label, patch) => {
     expect(studentSignupSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
   });
@@ -67,10 +70,10 @@ describe("Student profile sign-up (event-independent)", () => {
   const valid = {
     fullName: "maria  clara santos",
     studentId: "2020001234",
-    section: "bsn 2-b",
+    section: "bsn-1a",
     yearLevel: "2nd Year",
     department: "College of Nursing",
-    email: "Maria@Nursing.edu.ph",
+    email: "MCSantos.Student@UA.EDU.PH",
     password: "nurse2024",
     consent: true,
   };
@@ -79,7 +82,7 @@ describe("Student profile sign-up (event-independent)", () => {
     const { studentProfileSchema } = await import("@/lib/schemas");
     const r = studentProfileSchema.safeParse(valid);
     expect(r.success).toBe(true);
-    expect(r.data).toMatchObject({ fullName: "Maria Clara Santos", section: "BSN 2-B", email: "maria@nursing.edu.ph", studentId: "2020001234" });
+    expect(r.data).toMatchObject({ fullName: "Maria Clara Santos", section: "BSN-1A", email: "mcsantos.student@ua.edu.ph", studentId: "2020001234" });
   });
 
   it.each([["2020-001234"], [" 2020 001234 "]])("accepts %s by ignoring spaces and dashes", async (id) => {
@@ -97,6 +100,13 @@ describe("Student profile sign-up (event-independent)", () => {
     const r = studentProfileSchema.safeParse({ ...valid, studentId: id });
     expect(r.success).toBe(false);
     expect(r.error?.flatten().fieldErrors.studentId?.[0]).toMatch(msg);
+  });
+
+  it("accepts up to 4th year and rejects beyond 4th year", async () => {
+    const { studentProfileSchema } = await import("@/lib/schemas");
+    expect(studentProfileSchema.safeParse({ ...valid, yearLevel: "4th Year" }).success).toBe(true);
+    expect(studentProfileSchema.safeParse({ ...valid, yearLevel: "5th Year" }).success).toBe(false);
+    expect(studentProfileSchema.safeParse({ ...valid, yearLevel: "Graduate" }).success).toBe(false);
   });
 
   it("requires year level, consent and a first + last name", async () => {

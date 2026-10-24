@@ -58,6 +58,9 @@ export function SignOutButton() {
   );
 }
 
+import SaveQrButton from "@/components/SaveQrButton";
+import { getQrDataUrl } from "@/lib/qr-cache";
+
 export function OpenPassButton() {
   const { pending } = useFormStatus();
   return (
@@ -68,24 +71,42 @@ export function OpenPassButton() {
   );
 }
 
-/** Renders a QR token large and high-contrast for the scanner. */
-export function QrImage({ token, label }: { token: string; label: string }) {
+/** Renders a QR token large and high-contrast for the scanner, with option to save as PNG to photos. */
+export function QrImage({
+  token,
+  label,
+  eventName,
+  attendeeName,
+  maskedStudentId,
+  section,
+  referenceCode,
+  expiresAt,
+}: {
+  token: string;
+  label: string;
+  eventName?: string;
+  attendeeName?: string;
+  maskedStudentId?: string;
+  section?: string;
+  referenceCode?: string;
+  expiresAt?: string | null;
+}) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    import("qrcode").then((QR) =>
-      QR.toDataURL(token, { width: 560, margin: 4, errorCorrectionLevel: "M", color: { dark: "#0b2e2f", light: "#ffffff" } }).then((url) => alive && setSrc(url)),
-    );
+    getQrDataUrl(token, { width: 560 }).then((url) => {
+      if (alive) setSrc(url);
+    });
     return () => {
       alive = false;
     };
   }, [token]);
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="rounded-2xl border-2 border-brand-600 p-3 bg-white">
+    <div className="flex flex-col items-center gap-2.5 w-full">
+      <div className="rounded-2xl border-2 border-brand-600 p-3 bg-white shadow-sm">
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element -- generated data URL
-          <img src={src} alt={`${label} QR code`} width={240} height={240} className="w-[min(240px,62vw)] h-auto [image-rendering:pixelated]" />
+          <img src={src} alt={`${label} QR code`} width={240} height={240} className="w-[min(240px,62vw)] h-auto select-none [image-rendering:pixelated]" />
         ) : (
           <div className="w-[min(240px,62vw)] aspect-square flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-brand-300" aria-hidden="true" />
@@ -95,6 +116,19 @@ export function QrImage({ token, label }: { token: string; label: string }) {
       <p className="flex items-center gap-1.5 text-xs font-semibold text-[#23403f]">
         <Sun className="w-3.5 h-3.5" aria-hidden="true" /> Turn up your screen brightness
       </p>
+      {src && (
+        <SaveQrButton
+          token={token}
+          label={label}
+          eventName={eventName}
+          attendeeName={attendeeName}
+          maskedStudentId={maskedStudentId}
+          section={section}
+          referenceCode={referenceCode}
+          expiresAt={expiresAt}
+          className="w-full sm:w-auto mt-1"
+        />
+      )}
     </div>
   );
 }
@@ -112,8 +146,24 @@ function useCountdown(until: string | null) {
   return left;
 }
 
-/** Time-out pass: generated on demand (short-lived), shown with a live countdown. */
-export function TimeOutPass({ registrationId, initial }: { registrationId: string; initial: { token: string; expiresAt: string } | null }) {
+/** Time-out pass: generated on demand (short-lived), shown with a live countdown and save-to-photos. */
+export function TimeOutPass({
+  registrationId,
+  initial,
+  eventName,
+  attendeeName,
+  maskedStudentId,
+  section,
+  referenceCode,
+}: {
+  registrationId: string;
+  initial: { token: string; expiresAt: string } | null;
+  eventName?: string;
+  attendeeName?: string;
+  maskedStudentId?: string;
+  section?: string;
+  referenceCode?: string;
+}) {
   const router = useRouter();
   const [pass, setPass] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +177,8 @@ export function TimeOutPass({ registrationId, initial }: { registrationId: strin
       const r = await requestTimeOutPass(registrationId);
       if (r.ok) {
         setPass({ token: r.token, expiresAt: r.expiresAt });
-        router.refresh();
+        // Background refresh without delaying pass display
+        setTimeout(() => router.refresh(), 50);
       } else setError(r.error);
     });
   }
@@ -137,8 +188,17 @@ export function TimeOutPass({ registrationId, initial }: { registrationId: strin
     const m = Math.floor(ms / 60000);
     const s = Math.floor((ms % 60000) / 1000);
     return (
-      <div className="flex flex-col items-center gap-2">
-        <QrImage token={pass.token} label="Time out" />
+      <div className="flex flex-col items-center gap-2 w-full">
+        <QrImage
+          token={pass.token}
+          label="Time out"
+          eventName={eventName}
+          attendeeName={attendeeName}
+          maskedStudentId={maskedStudentId}
+          section={section}
+          referenceCode={referenceCode}
+          expiresAt={pass.expiresAt}
+        />
         <p className="text-sm font-semibold text-ink flex items-center gap-1.5" aria-live="polite">
           <Clock className="w-4 h-4 text-brand-600" aria-hidden="true" /> {left === null ? "Valid for a few minutes" : `Valid for ${m}:${String(s).padStart(2, "0")}`}
         </p>
@@ -149,8 +209,7 @@ export function TimeOutPass({ registrationId, initial }: { registrationId: strin
   return (
     <div className="flex flex-col gap-2">
       <button type="button" onClick={generate} disabled={pending} className="btn-primary btn-lg w-full">
-        {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-5 h-5" aria-hidden="true" />}
-        {expired ? "Generate a new time-out QR" : "Get my time-out QR"}
+        {pending ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><QrCode className="w-5 h-5" aria-hidden="true" /> {expired ? "Generate a new time-out QR" : "Get my time-out QR"}</>}
       </button>
       {expired && <p className="text-xs text-center text-[#4b6362]">Your previous time-out QR expired.</p>}
       {error && <p role="alert" className="text-sm font-semibold text-danger-600 text-center">{error}</p>}
@@ -286,7 +345,7 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
         <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
           <div className="min-w-0">
             <label htmlFor="p-section" className="label">Section</label>
-            <input id="p-section" name="section" defaultValue={v.section} maxLength={40} className="input" autoCapitalize="characters" placeholder="e.g. BSN 2-B" {...aria("section")} />
+            <input id="p-section" name="section" defaultValue={v.section} maxLength={40} className="input" autoCapitalize="characters" placeholder="e.g. BSN-1A" {...aria("section")} />
             {err("section")}
           </div>
           <div className="min-w-0">

@@ -7,6 +7,9 @@ import Link from "next/link";
 import { clsx } from "clsx";
 import { Logo } from "@/components/Brand";
 
+import SaveQrButton from "@/components/SaveQrButton";
+import { getQrDataUrl, preloadQrLibrary } from "@/lib/qr-cache";
+
 interface CredentialInfo {
   id: string;
   action: "time_in" | "time_out";
@@ -53,17 +56,36 @@ interface QrDisplayProps {
   expiresAt: string | null;
   icon: React.ReactNode;
   color: "blue" | "green";
+  eventName: string;
+  attendeeName: string;
+  maskedStudentId: string;
+  section: string;
+  referenceCode: string;
 }
 
-function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
+function QrDisplay({
+  label,
+  token,
+  expiresAt,
+  icon,
+  color,
+  eventName,
+  attendeeName,
+  maskedStudentId,
+  section,
+  referenceCode,
+}: QrDisplayProps) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    import("qrcode").then((QRCode) => {
-      QRCode.toDataURL(token, { width: 480, margin: 4, errorCorrectionLevel: "M", color: { dark: "#0b2e2f", light: "#ffffff" } })
-        .then(setDataUrl);
+    let alive = true;
+    getQrDataUrl(token).then((url) => {
+      if (alive) setDataUrl(url);
     });
+    return () => {
+      alive = false;
+    };
   }, [token]);
 
   useEffect(() => {
@@ -77,7 +99,7 @@ function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
   const textColor = color === "blue" ? "text-brand-700" : "text-success-700";
 
   return (
-    <div className="card p-5 flex flex-col items-center gap-4 shadow-[0_8px_24px_rgb(11_46_47/0.08)]">
+    <div className="card p-5 flex flex-col items-center gap-3.5 shadow-[0_8px_24px_rgb(11_46_47/0.08)]">
       <div className={clsx("flex items-center gap-2 font-bold", textColor)}>
         {icon} {label} pass
       </div>
@@ -87,9 +109,15 @@ function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
           <p className="text-sm font-medium">QR Code Expired</p>
         </div>
       ) : dataUrl ? (
-        <div className="rounded-2xl border-2 border-brand-600 p-3 bg-white">
+        <div className="rounded-2xl border-2 border-brand-600 p-3 bg-white shadow-sm">
           {/* eslint-disable-next-line @next/next/no-img-element -- generated data URL */}
-          <img src={dataUrl} alt={`${label} QR code`} width={240} height={240} className="w-[min(240px,64vw)] h-auto" />
+          <img
+            src={dataUrl}
+            alt={`${label} QR code`}
+            width={240}
+            height={240}
+            className="w-[min(240px,64vw)] h-auto select-none"
+          />
         </div>
       ) : (
         <div className="flex items-center justify-center w-[min(240px,64vw)] aspect-square">
@@ -97,9 +125,22 @@ function QrDisplay({ label, token, expiresAt, icon, color }: QrDisplayProps) {
         </div>
       )}
       {!expired && dataUrl && (
-        <p className="flex items-center gap-2 text-sm font-semibold text-success-700">
-          <span className="w-2.5 h-2.5 rounded-full bg-success-500" /> Ready to scan · turn up brightness
-        </p>
+        <div className="flex flex-col items-center gap-2.5 w-full">
+          <p className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-success-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-success-500 animate-pulse" /> Ready to scan · turn up brightness
+          </p>
+          <SaveQrButton
+            token={token}
+            label={label}
+            eventName={eventName}
+            attendeeName={attendeeName}
+            maskedStudentId={maskedStudentId}
+            section={section}
+            referenceCode={referenceCode}
+            expiresAt={expiresAt}
+            className="w-full sm:w-auto"
+          />
+        </div>
       )}
       {expiresAt && (
         <p className={clsx("text-xs text-center", expired ? "text-danger-600" : "text-slate-500")}>
@@ -115,6 +156,10 @@ export default function ParticipantClient({ data, accessToken, back }: { data: P
   const [timeOutExpiry, setTimeOutExpiry] = useState<string | null>(null);
   const [issuingTimeOut, setIssuingTimeOut] = useState(false);
   const [timeOutError, setTimeOutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    preloadQrLibrary();
+  }, []);
 
   const issueTimeOut = useCallback(async () => {
     setIssuingTimeOut(true);
@@ -183,6 +228,11 @@ export default function ParticipantClient({ data, accessToken, back }: { data: P
                 expiresAt={null}
                 icon={<LogIn className="w-4 h-4" />}
                 color="blue"
+                eventName={ev.name}
+                attendeeName={data.fullName}
+                maskedStudentId={data.maskedStudentId}
+                section={data.section}
+                referenceCode={data.referenceCode}
               />
             )}
             {att.timeInAt && (
@@ -205,6 +255,11 @@ export default function ParticipantClient({ data, accessToken, back }: { data: P
                     expiresAt={timeOutExpiry}
                     icon={<LogOut className="w-4 h-4" />}
                     color="green"
+                    eventName={ev.name}
+                    attendeeName={data.fullName}
+                    maskedStudentId={data.maskedStudentId}
+                    section={data.section}
+                    referenceCode={data.referenceCode}
                   />
                 ) : (
                   <div className="card p-5 flex flex-col items-center gap-3">

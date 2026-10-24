@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import EventPicker from "../EventPicker";
 import { requirePagePermission } from "@/lib/auth/session";
 import { listAllEvents } from "@/lib/services/events";
-import { getEventStats, getSectionBreakdown, getAuditLog } from "@/lib/services/attendance";
-import { formatInZone } from "@/lib/time";
+import { getEventStats, getSectionBreakdown } from "@/lib/services/attendance";
 import { BarChart2, Download } from "lucide-react";
-import Link from "next/link";
 import ReportsCharts from "./ReportsCharts";
 
 export const metadata: Metadata = { title: "Reports" };

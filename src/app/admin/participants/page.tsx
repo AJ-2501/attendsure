@@ -16,7 +16,7 @@ export default async function ParticipantsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const staff = await requirePagePermission("participants.view");
+  await requirePagePermission("participants.view");
   const sp = await searchParams;
   const eventId = sp.event ?? "";
   const q = sp.q ?? "";
@@ -84,7 +84,7 @@ export default async function ParticipantsPage({
         </div>
         <div className="min-w-0">
           <label htmlFor="f-section" className="label">Section</label>
-          <input id="f-section" name="section" defaultValue={section} placeholder="BSN 2-B" className="input" autoCapitalize="characters" />
+          <input id="f-section" name="section" defaultValue={section} placeholder="e.g. BSN-1A" className="input" autoCapitalize="characters" />
         </div>
         <div className="min-w-0">
           <label htmlFor="f-status" className="label">Status</label>

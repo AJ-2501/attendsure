@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm, type FieldErrors, type Resolver, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema, type EventInput } from "@/lib/schemas";
@@ -27,7 +27,7 @@ const DATETIME_FIELDS = [
   "startsAt", "endsAt", "registrationOpensAt", "registrationClosesAt",
   "timeInOpensAt", "timeInClosesAt", "timeOutOpensAt", "timeOutClosesAt",
 ] as const;
-const LOCAL_DT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const LOCAL_DT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
 
 const LABELS: Record<string, string> = {
   name: "Event name", description: "Description", venue: "Venue", organizer: "Organizer", timezone: "Time zone",
@@ -51,7 +51,8 @@ const eventResolver: Resolver<EventInput> = async (values, ctx, opts) => {
       else (missing as Record<string, unknown>)[k] = { type: "required", message: "Select a date and time" };
     } else if (typeof raw === "string" && LOCAL_DT.test(raw)) {
       try {
-        v[k] = zonedLocalToUtc(raw, values.timezone);
+        const formatted = raw.length > 16 ? raw.slice(0, 16) : raw;
+        v[k] = zonedLocalToUtc(formatted, values.timezone);
       } catch {
         // invalid time zone: leave as-is so the schema reports it
       }
@@ -107,7 +108,6 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [summaryKeys, setSummaryKeys] = useState<(keyof EventInput)[]>([]);
-  const alertRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -159,10 +159,10 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       setSummaryKeys(keys);
       setServerError(result.error ?? "Could not save the event.");
       if (keys[0]) setFocus(keys[0], { shouldSelect: false });
-      else requestAnimationFrame(() => alertRef.current?.focus());
+      else requestAnimationFrame(() => document.getElementById("event-server-error")?.focus());
     } catch {
       setServerError("Could not save the event. Check your connection and try again.");
-      requestAnimationFrame(() => alertRef.current?.focus());
+      requestAnimationFrame(() => document.getElementById("event-server-error")?.focus());
     }
   }
 
@@ -292,13 +292,13 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
           <p className="label">Also required</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Toggle id="rf-department" label="Department" description="College / department." field={register("requiredFields.department")} />
-            <Toggle id="rf-year" label="Year level" description="1st to 5th year." field={register("requiredFields.year_level")} />
+            <Toggle id="rf-year" label="Year level" description="1st to 4th year." field={register("requiredFields.year_level")} />
             <Toggle id="rf-email" label="School email" description="Must be a school address." field={register("requiredFields.email")} />
           </div>
         </div>
       </Section>
 
-      {serverError && <div ref={alertRef} role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverError}</div>}
+      {serverError && <div id="event-server-error" role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverError}</div>}
 
       {/* Sticky action bar: stays above the mobile tab bar, inline on desktop. */}
       <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-4 z-10 -mx-4 sm:mx-0 px-4 py-3 sm:p-3 bg-white/95 backdrop-blur border-y sm:border border-[#dce7e5] sm:rounded-2xl shadow-[0_-4px_16px_rgb(11_46_47/0.06)] flex gap-3">

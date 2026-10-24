@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +34,6 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "signing-in">("idle");
-  const alertRef = useRef<HTMLDivElement>(null);
   const {
     register,
     handleSubmit,
@@ -63,7 +62,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         for (const name of names) setError(name as keyof FormValues, { message: fields[name][0] });
         setFormError(json.error?.message ?? "Couldn't create your account. Please try again.");
         if (names[0]) setFocus(names[0] as keyof FormValues);
-        else requestAnimationFrame(() => alertRef.current?.focus());
+        else requestAnimationFrame(() => document.getElementById("signup-error")?.focus());
         return;
       }
       setPhase("signing-in");
@@ -78,7 +77,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
       router.refresh();
     } catch {
       setFormError("Can't reach the server. Check your connection and try again.");
-      requestAnimationFrame(() => alertRef.current?.focus());
+      requestAnimationFrame(() => document.getElementById("signup-error")?.focus());
     }
   }
 
@@ -114,8 +113,8 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
           <input id="studentId" {...register("studentId")} {...aria("studentId", true)} inputMode="numeric" autoComplete="off" maxLength={12} spellCheck={false} className="input font-mono bg-[#f3f7f6]" placeholder={`e.g. ${STUDENT_ID_EXAMPLE}`} />
         </Field>
         <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
-          <Field id="section" label="Section" hint="e.g. BSN 2-B" error={errors.section?.message}>
-            <input id="section" {...register("section")} {...aria("section", true)} autoCapitalize="characters" maxLength={40} className="input bg-[#f3f7f6]" placeholder="e.g. BSN 2-B" />
+          <Field id="section" label="Section" hint="e.g. BSN-1A" error={errors.section?.message}>
+            <input id="section" {...register("section")} {...aria("section", true)} autoCapitalize="characters" maxLength={40} className="input bg-[#f3f7f6]" placeholder="e.g. BSN-1A" />
           </Field>
           <Field id="yearLevel" label="Year level" error={errors.yearLevel?.message}>
             <div className="relative">
@@ -136,8 +135,8 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         <legend className="font-bold text-ink flex items-center gap-2 mb-1">
           <ShieldCheck className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your account
         </legend>
-        <Field id="email" label="Email address" hint="e.g. you@nursing.edu.ph" error={errors.email?.message}>
-          <input id="email" type="email" {...register("email")} {...aria("email", true)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input bg-[#f3f7f6]" placeholder="you@nursing.edu.ph" />
+        <Field id="email" label="Email address" hint="e.g. initialssurname.student@ua.edu.ph" error={errors.email?.message}>
+          <input id="email" type="email" {...register("email")} {...aria("email", true)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input bg-[#f3f7f6]" placeholder="initialssurname.student@ua.edu.ph" />
         </Field>
         <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
           <div className="relative">
@@ -178,7 +177,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
 
       {formError && (
         <div
-          ref={alertRef}
+          id="signup-error"
           role="alert"
           tabIndex={-1}
           className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2.5 outline-none"

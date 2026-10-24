@@ -30,7 +30,7 @@ function ProgressRing({ pct }: { pct: number }) {
 }
 
 export default async function AdminDashboard() {
-  const staff = await requirePagePermission("dashboard.view");
+  await requirePagePermission("dashboard.view");
   const { events } = await listAllEvents(1, 10);
   const now = new Date();
 
@@ -44,7 +44,6 @@ export default async function AdminDashboard() {
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
-        <p className="text-sm text-[#4b6362]">{greeting(now)}{staff.displayName ? `, ${staff.displayName.split(" ")[0]}` : ""}</p>
         <h1 className="text-xl sm:text-2xl font-bold text-ink">Dashboard</h1>
       </div>
 
@@ -165,11 +164,6 @@ export default async function AdminDashboard() {
       </section>
     </div>
   );
-}
-
-function greeting(d: Date) {
-  const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", hourCycle: "h23" }).format(d));
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
 function Stat({ label, value, tone, className }: { label: string; value: number; tone?: "danger"; className?: string }) {

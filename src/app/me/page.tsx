@@ -53,7 +53,17 @@ function Step({ icon: Icon, label, at, refCode, tz, enabled }: { icon: typeof Lo
 }
 
 /** What the student should do right now for this event, with the right QR. */
-function PassPanel({ r, now }: { r: StudentEventRecord; now: number }) {
+function PassPanel({
+  r,
+  now,
+  attendeeName,
+  maskedStudentId,
+}: {
+  r: StudentEventRecord;
+  now: number;
+  attendeeName?: string;
+  maskedStudentId?: string;
+}) {
   const tz = r.event.timezone;
   const a = r.attendance;
   const fmt = (iso: string) => formatInZone(iso, tz, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -67,7 +77,19 @@ function PassPanel({ r, now }: { r: StudentEventRecord; now: number }) {
     return (
       <div className="rounded-2xl bg-[#f3f7f6] p-4 flex flex-col items-center gap-3 text-center">
         <p className="font-bold text-ink flex items-center gap-2"><LogIn className="w-4 h-4 text-brand-600" aria-hidden="true" /> Time-in pass</p>
-        {r.timeInToken ? <QrImage token={r.timeInToken} label="Time in" /> : <p className="text-sm text-[#4b6362]">Your time-in pass isn&apos;t available. Ask the event staff to reissue it.</p>}
+        {r.timeInToken ? (
+          <QrImage
+            token={r.timeInToken}
+            label="Time in"
+            eventName={r.event.name}
+            attendeeName={attendeeName}
+            maskedStudentId={maskedStudentId}
+            section={r.section}
+            referenceCode={r.referenceCode}
+          />
+        ) : (
+          <p className="text-sm text-[#4b6362]">Your time-in pass isn&apos;t available. Ask the event staff to reissue it.</p>
+        )}
         <p className={clsx("text-sm", now < opens ? "font-semibold text-[#8a4b06]" : "text-[#23403f]")}>
           {now < opens ? `Scanning opens ${fmt(r.event.time_in_opens_at)}` : `Show this to staff at the door · until ${fmt(r.event.time_in_closes_at)}`}
         </p>
@@ -86,7 +108,17 @@ function PassPanel({ r, now }: { r: StudentEventRecord; now: number }) {
           <p className="text-sm font-semibold text-[#8a4b06]">Time-out opens {fmt(r.timeOutWindow.opens)}. Come back then to get your QR.</p>
         ) : (
           <>
-            <div className="w-full"><TimeOutPass registrationId={r.registrationId} initial={r.timeOut} /></div>
+            <div className="w-full">
+              <TimeOutPass
+                registrationId={r.registrationId}
+                initial={r.timeOut}
+                eventName={r.event.name}
+                attendeeName={attendeeName}
+                maskedStudentId={maskedStudentId}
+                section={r.section}
+                referenceCode={r.referenceCode}
+              />
+            </div>
             <p className="text-xs text-[#4b6362]">Generate it when you&apos;re ready to leave. Time-out closes {fmt(r.timeOutWindow.closes)}.</p>
           </>
         )}
@@ -96,7 +128,19 @@ function PassPanel({ r, now }: { r: StudentEventRecord; now: number }) {
   return null;
 }
 
-function RecordCard({ r, now, highlight }: { r: StudentEventRecord; now: number; highlight?: boolean }) {
+function RecordCard({
+  r,
+  now,
+  highlight,
+  attendeeName,
+  maskedStudentId,
+}: {
+  r: StudentEventRecord;
+  now: number;
+  highlight?: boolean;
+  attendeeName?: string;
+  maskedStudentId?: string;
+}) {
   const v = verdict(r, now);
   const tz = r.event.timezone;
   const ended = now >= Date.parse(r.event.ends_at);
@@ -119,7 +163,7 @@ function RecordCard({ r, now, highlight }: { r: StudentEventRecord; now: number;
         <VIcon className="w-3.5 h-3.5" aria-hidden="true" /> {v.label}
       </span>
 
-      <PassPanel r={r} now={now} />
+      <PassPanel r={r} now={now} attendeeName={attendeeName} maskedStudentId={maskedStudentId} />
 
       <div className="grid grid-cols-2 gap-2.5">
         <Step icon={LogIn} label="Time in" at={r.attendance?.time_in_at} refCode={r.attendance?.time_in_ref} tz={tz} enabled={r.event.allow_time_in} />
@@ -254,7 +298,16 @@ export default async function StudentDashboardPage({
               <h2 id="current" className="text-xs font-bold tracking-[0.08em] uppercase text-[#4b6362]">Your passes</h2>
               {openEvents.length > 0 && <Link href="#open-events" className="text-sm font-semibold text-brand-600 min-h-11 inline-flex items-center">+ Get another pass</Link>}
             </div>
-            {current.map((r) => <RecordCard key={r.registrationId} r={r} now={now} highlight={r.referenceCode === registered} />)}
+            {current.map((r) => (
+              <RecordCard
+                key={r.registrationId}
+                r={r}
+                now={now}
+                highlight={r.referenceCode === registered}
+                attendeeName={profile?.fullName ?? data.fullName ?? undefined}
+                maskedStudentId={profile ? profile.studentId.slice(0, 4) + "••••" + profile.studentId.slice(-2) : data.maskedStudentId ?? undefined}
+              />
+            ))}
           </section>
         )}
 
@@ -299,7 +352,15 @@ export default async function StudentDashboardPage({
         {past.length > 0 && (
           <section aria-labelledby="history" className="flex flex-col gap-3">
             <h2 id="history" className="text-xs font-bold tracking-[0.08em] uppercase text-[#4b6362]">Attendance history</h2>
-            {past.map((r) => <RecordCard key={r.registrationId} r={r} now={now} />)}
+            {past.map((r) => (
+              <RecordCard
+                key={r.registrationId}
+                r={r}
+                now={now}
+                attendeeName={profile?.fullName ?? data.fullName ?? undefined}
+                maskedStudentId={profile ? profile.studentId.slice(0, 4) + "••••" + profile.studentId.slice(-2) : data.maskedStudentId ?? undefined}
+              />
+            ))}
           </section>
         )}
 

@@ -13,7 +13,7 @@ const FLOATERS = [
 
 function MonitorPanel({ tagline }: { tagline: string }) {
   return (
-    <div className="monitor-grid relative overflow-hidden flex flex-col items-center px-6 pt-[calc(3rem+env(safe-area-inset-top))] pb-16 lg:pb-0 lg:justify-center lg:flex-1 lg:min-h-dvh">
+    <div className="monitor-grid relative overflow-hidden flex flex-col items-center justify-center px-6 sm:px-10 lg:px-12 pt-[calc(3rem+env(safe-area-inset-top))] pb-16 lg:py-16 lg:w-1/2 lg:flex-1 lg:min-h-dvh">
       {FLOATERS.map((f, i) => (
         <Plus
           key={i}
@@ -24,25 +24,18 @@ function MonitorPanel({ tagline }: { tagline: string }) {
         />
       ))}
 
-      <div className="absolute right-5 top-[calc(1.25rem+env(safe-area-inset-top))] flex items-center gap-1.5 font-mono text-[13px] text-mint" aria-hidden="true">
-        <svg viewBox="0 0 24 24" className="blink-soft w-3.5 h-3.5 fill-coral">
-          <path d="M12 21 4.5 13.6A4.6 4.6 0 0 1 12 7.6a4.6 4.6 0 0 1 7.5 6Z" />
-        </svg>
-        <span>72 BPM</span>
-      </div>
-
       <div className="relative w-[68px] h-[68px] sm:w-[76px] sm:h-[76px] lg:w-24 lg:h-24">
         <div className="pulse-out absolute inset-0 rounded-[22px] border-2 border-coral" />
         <div className="heart-beat w-full h-full rounded-[22px] bg-brand-600 flex items-center justify-center shadow-[0_10px_30px_rgb(15_118_110/0.45)]">
           <LogoMark className="w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-white" strokeWidth={2} />
         </div>
       </div>
-      <p className="mt-4 text-[30px] sm:text-[34px] lg:text-5xl font-extrabold tracking-tight text-white">
+      <p className="mt-4 text-[30px] sm:text-[34px] lg:text-5xl font-extrabold tracking-tight text-white text-center">
         Attend<span className="text-mint">Sure</span>
       </p>
-      <p className="mt-1 text-[15px] lg:text-lg text-[#a7c9c6] text-center">{tagline}</p>
+      <p className="mt-1 text-[15px] lg:text-lg text-[#a7c9c6] text-center max-w-sm">{tagline}</p>
 
-      <EcgLine className="w-full max-w-3xl h-auto mt-4 lg:mt-12" />
+      <EcgLine className="w-full max-w-md lg:max-w-lg h-auto mt-6 lg:mt-10" />
     </div>
   );
 }
@@ -85,15 +78,15 @@ export default function AuthShell({
   return (
     <div className="min-h-dvh flex flex-col lg:flex-row bg-ink">
       <MonitorPanel tagline={tagline} />
-      <main className="animate-sheet-up relative -mt-8 lg:mt-0 flex-1 lg:flex-none lg:w-[500px] bg-white rounded-t-[28px] lg:rounded-none shadow-[0_-12px_40px_rgb(0_0_0/0.25)] lg:shadow-none px-5 sm:px-8 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:px-14 flex flex-col lg:justify-center lg:overflow-y-auto">
-        <div className="w-full max-w-sm mx-auto flex flex-col gap-5 flex-1 lg:flex-none">
+      <main className="animate-sheet-up relative -mt-8 lg:mt-0 flex-1 lg:w-1/2 lg:flex-1 bg-white rounded-t-[28px] lg:rounded-none shadow-[0_-12px_40px_rgb(0_0_0/0.25)] lg:shadow-none px-6 sm:px-10 lg:px-12 xl:px-16 pt-8 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:py-16 flex flex-col justify-center items-center lg:overflow-y-auto">
+        <div className="w-full max-w-md flex flex-col gap-5">
           <RoleSwitch active={role} />
           <div>
-            <h1 className="text-[22px] font-bold text-ink">{title}</h1>
+            <h1 className="text-[22px] sm:text-2xl font-bold text-ink">{title}</h1>
             <p className="mt-1 text-sm text-[#4b6362]">{subtitle}</p>
           </div>
           {children}
-          <Link href="/" className="mt-auto lg:mt-2 self-center min-h-11 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700">
+          <Link href="/" className="mt-2 self-center min-h-11 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700 active:scale-[0.98] transition-transform">
             <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Back to events
           </Link>
         </div>

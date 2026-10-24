@@ -1,4 +1,4 @@
-import { ok, fail, handle } from "@/lib/api";
+import { ok, handle } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/session";
 import { manualAttendanceSchema } from "@/lib/schemas";
 import { manualAttendance } from "@/lib/services/attendance";

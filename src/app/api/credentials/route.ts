@@ -1,6 +1,6 @@
 import { ok, fail, handle } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/session";
-import { reissueSchema, reasonSchema } from "@/lib/schemas";
+import { reissueSchema } from "@/lib/schemas";
 import { staffReissueCredential, revokeCredentials } from "@/lib/services/credentials";
 import type { NextRequest } from "next/server";
 

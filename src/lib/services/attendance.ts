@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
-import { hashScannedToken, sha256Hex } from "@/lib/crypto/tokens";
+import { hashScannedToken } from "@/lib/crypto/tokens";
 import type { EventStats, ScanAttemptRow } from "@/lib/types";
 
 export type ScanResult = {

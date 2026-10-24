@@ -91,11 +91,15 @@
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    transition: background-color 0.15s ease-out, color 0.15s ease-out, box-shadow 0.15s ease-out, transform 0.15s ease-out;
+    transition: background-color 0.12s ease-out, color 0.12s ease-out, box-shadow 0.12s ease-out, transform 0.08s ease-out;
     cursor: pointer;
     user-select: none;
+    touch-action: manipulation;
     border: none;
     text-decoration: none;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.975);
   }
   .btn:focus-visible {
     outline: 2px solid var(--color-brand-500);
@@ -104,6 +108,7 @@
   .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
   }
 
   .btn-primary {
@@ -117,9 +122,10 @@
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    transition: background-color 0.15s ease-out, box-shadow 0.15s ease-out;
+    transition: background-color 0.12s ease-out, box-shadow 0.12s ease-out, transform 0.08s ease-out;
     cursor: pointer;
     user-select: none;
+    touch-action: manipulation;
     text-decoration: none;
     background-color: var(--color-brand-600);
     color: #ffffff;
@@ -127,9 +133,9 @@
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
   .btn-primary:hover:not(:disabled) { background-color: var(--color-brand-700); }
-  .btn-primary:active:not(:disabled) { background-color: var(--color-brand-800); }
+  .btn-primary:active:not(:disabled) { background-color: var(--color-brand-800); transform: scale(0.975); }
   .btn-primary:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; }
-  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   .btn-secondary {
     display: inline-flex;
@@ -142,18 +148,19 @@
     font-weight: 600;
     font-size: 0.875rem;
     line-height: 1.25rem;
-    transition: background-color 0.15s ease-out;
+    transition: background-color 0.12s ease-out, border-color 0.12s ease-out, transform 0.08s ease-out;
     cursor: pointer;
     user-select: none;
+    touch-action: manipulation;
     text-decoration: none;
     background-color: #ffffff;
     color: #374151;
     border: 1px solid #d1d5db;
   }
-  .btn-secondary:hover:not(:disabled) { background-color: #f9fafb; }
-  .btn-secondary:active:not(:disabled) { background-color: #f3f4f6; }
+  .btn-secondary:hover:not(:disabled) { background-color: #f9fafb; border-color: #9ca3af; }
+  .btn-secondary:active:not(:disabled) { background-color: #f3f4f6; transform: scale(0.975); }
   .btn-secondary:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; }
-  .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   .btn-danger {
     display: inline-flex;
@@ -165,15 +172,18 @@
     padding: 0.5rem 1rem;
     font-weight: 600;
     font-size: 0.875rem;
-    transition: background-color 0.15s ease-out;
+    transition: background-color 0.12s ease-out, transform 0.08s ease-out;
     cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
     text-decoration: none;
     background-color: var(--color-danger-600);
     color: #ffffff;
     border: none;
   }
   .btn-danger:hover:not(:disabled) { filter: brightness(0.9); }
-  .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-danger:active:not(:disabled) { transform: scale(0.975); filter: brightness(0.8); }
+  .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   .btn-ghost {
     display: inline-flex;
@@ -185,16 +195,18 @@
     padding: 0.5rem 1rem;
     font-weight: 600;
     font-size: 0.875rem;
-    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+    transition: background-color 0.12s ease-out, color 0.12s ease-out, transform 0.08s ease-out;
     cursor: pointer;
     user-select: none;
+    touch-action: manipulation;
     text-decoration: none;
     background: transparent;
     color: #4b5563;
     border: none;
   }
   .btn-ghost:hover:not(:disabled) { background-color: #f1f5f9; color: #111827; }
-  .btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-ghost:active:not(:disabled) { background-color: #e2e8f0; transform: scale(0.975); }
+  .btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   /* Size modifiers */
   .btn-sm {

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,7 +41,10 @@ export default function SignInForm({
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(initialError);
-  const alertRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    router.prefetch(safeNext(next, redirectTo));
+  }, [router, next, redirectTo]);
 
   const {
     register,
@@ -56,7 +59,7 @@ export default function SignInForm({
 
   function showFormError(msg: string) {
     setFormError(msg);
-    requestAnimationFrame(() => alertRef.current?.focus());
+    requestAnimationFrame(() => document.getElementById("sign-in-error")?.focus());
   }
 
   async function onSubmit(values: SignInInput) {
@@ -166,7 +169,7 @@ export default function SignInForm({
 
       {formError && (
         <div
-          ref={alertRef}
+          id="sign-in-error"
           role="alert"
           tabIndex={-1}
           className="flex items-start gap-2 text-sm text-danger-600 bg-danger-50 border border-danger-500/20 rounded-xl px-3 py-2.5 outline-none"

@@ -25,7 +25,11 @@ export const requiredFieldsSchema = z.object({
 });
 export type RequiredFields = z.infer<typeof requiredFieldsSchema>;
 
-export const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "Graduate"] as const;
+export const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"] as const;
+
+export const STUDENT_EMAIL_DOMAIN = "ua.edu.ph";
+export const STUDENT_EMAIL_EXAMPLE = "initialssurname.student@ua.edu.ph";
+export const STUDENT_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+\.student@ua\.edu\.ph$/i;
 
 export interface RegistrationRules {
   studentIdPattern: string;
@@ -78,7 +82,7 @@ export function buildRegistrationSchema(rules: RegistrationRules) {
       section: z
         .string()
         .transform(normalizeSection)
-        .pipe(z.string().min(1, "Section is required").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
+        .pipe(z.string().min(1, "Enter your section, e.g. BSN-1A").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
       department: z
         .string()
         .optional()
@@ -101,8 +105,18 @@ export function buildRegistrationSchema(rules: RegistrationRules) {
         .transform((s) => s.trim().toLowerCase())
         .pipe(
           rf.email
-            ? z.string().email("Enter a valid school email")
-            : z.union([z.string().email("Enter a valid email"), z.literal("")]),
+            ? z
+                .string()
+                .min(1, "Email is required")
+                .email("Enter a valid email")
+                .regex(STUDENT_EMAIL_REGEX, `Use your university email (e.g. ${STUDENT_EMAIL_EXAMPLE})`)
+            : z.union([
+                z
+                  .string()
+                  .email("Enter a valid email")
+                  .regex(STUDENT_EMAIL_REGEX, `Use your university email (e.g. ${STUDENT_EMAIL_EXAMPLE})`),
+                z.literal(""),
+              ]),
         ),
     })
     .superRefine((v, ctx) => {
@@ -220,6 +234,10 @@ export const eventSchema = z
       ctx.addIssue({ code: "custom", path: ["timeInClosesAt"], message: "Must be after time-in opens" });
     if (e.timeOutOpensAt && e.timeOutClosesAt && t(e.timeOutClosesAt) <= t(e.timeOutOpensAt))
       ctx.addIssue({ code: "custom", path: ["timeOutClosesAt"], message: "Must be after time-out opens" });
+    if (e.timeOutOpensAt && !e.timeOutClosesAt)
+      ctx.addIssue({ code: "custom", path: ["timeOutClosesAt"], message: "Select a time-out closing time" });
+    if (!e.timeOutOpensAt && e.timeOutClosesAt)
+      ctx.addIssue({ code: "custom", path: ["timeOutOpensAt"], message: "Select a time-out opening time" });
     if (!e.allowTimeIn && !e.allowTimeOut)
       ctx.addIssue({ code: "custom", path: ["allowTimeIn"], message: "Enable at least one attendance action" });
   });
@@ -249,15 +267,29 @@ export const signInSchema = z.object({
     .string()
     .trim()
     .min(1, "Enter your email address.")
-    .email("Enter a valid email, like name@nursing.edu.ph.")
+    .email("Enter a valid email address.")
     .max(254, "Email address is too long."),
   password: z.string().min(1, "Enter your password.").max(72, "Password is too long."),
 });
 export type SignInInput = z.input<typeof signInSchema>;
 
+export function normalizeReferenceCode(input: string): string {
+  let clean = input.trim().toUpperCase().replace(/\s+/g, "-");
+  if (!clean.startsWith("SA-") && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(clean)) {
+    clean = `SA-${clean}`;
+  }
+  return clean;
+}
+
 /** Student account creation: proves ownership with a reference code from one of their registrations. */
 export const studentSignupSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Enter a valid email address").max(254),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address")
+    .regex(STUDENT_EMAIL_REGEX, `Use your university email (e.g. ${STUDENT_EMAIL_EXAMPLE})`)
+    .max(254),
   password: z
     .string()
     .min(8, "Use at least 8 characters")
@@ -270,9 +302,8 @@ export const studentSignupSchema = z.object({
     .pipe(z.string().regex(/^[0-9A-Z-]{4,32}$/, "Enter the student ID you registered with")),
   referenceCode: z
     .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Reference codes look like SA-XXXX-XXXX"),
+    .transform(normalizeReferenceCode)
+    .pipe(z.string().regex(/^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/, "Reference codes look like SA-XXXX-XXXX")),
 });
 export type StudentSignupInput = z.input<typeof studentSignupSchema>;
 
@@ -313,10 +344,16 @@ export const studentProfileSchema = z.object({
   section: z
     .string()
     .transform(normalizeSection)
-    .pipe(z.string().min(1, "Enter your section, e.g. BSN 2-B").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
+    .pipe(z.string().min(1, "Enter your section, e.g. BSN-1A").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
   yearLevel: z.enum(YEAR_LEVELS, { message: "Select your year level" }),
   department: z.string().transform((s) => s.replace(/\s+/g, " ").trim()).pipe(z.string().min(2, "Enter your college or department").max(120)),
-  email: z.string().trim().toLowerCase().email("Enter a valid email, e.g. you@nursing.edu.ph").max(254),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Enter a valid email address")
+    .regex(STUDENT_EMAIL_REGEX, `Use your university email (e.g. ${STUDENT_EMAIL_EXAMPLE})`)
+    .max(254),
   password: z
     .string()
     .min(8, "Use at least 8 characters")

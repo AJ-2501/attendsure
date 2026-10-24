@@ -12,7 +12,7 @@ interface Props {
   searchParams: Promise<{ from?: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "My Attendance – AttendSure",
     robots: { index: false, follow: false },

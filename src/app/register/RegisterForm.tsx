@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState, useEffect, useMemo, useRef } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { accountSchema, buildRegistrationSchema, YEAR_LEVELS } from "@/lib/schemas";
@@ -73,10 +73,12 @@ function RegisterForm() {
   const [result, setResult] = useState<{ referenceCode: string; participantPath: string; eventName: string } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null);
   const [preselect, setPreselect] = useState<string | null>(null);
-  const alertRef = useRef<HTMLDivElement>(null);
 
   const needsAccount = !me; // signed-out visitors create their account here
-  const rf = selectedEvent?.required_fields ?? { department: true, year_level: true, email: false };
+  const rf = useMemo(
+    () => selectedEvent?.required_fields ?? { department: true, year_level: true, email: false },
+    [selectedEvent?.required_fields]
+  );
 
   const resolver = useMemo<Resolver<FormValues>>(() => {
     const regSchema = buildRegistrationSchema(
@@ -126,6 +128,7 @@ function RegisterForm() {
           if (p.yearLevel) setValue("yearLevel", p.yearLevel);
           if (p.department) setValue("department", p.department);
         }
+        if (r.data.me?.email) setValue("email", r.data.me.email);
         const wanted = searchParams.get("event");
         // Applied after the <option>s render (see effect below), so the select shows it.
         if (wanted && list.some((e) => e.id === wanted)) setPreselect(wanted);
@@ -168,7 +171,7 @@ function RegisterForm() {
         }
         setServerMessage(json.error?.message ?? "Registration could not be completed. Please try again.");
         if (names[0]) setFocus(names[0] as keyof FormValues);
-        else requestAnimationFrame(() => alertRef.current?.focus());
+        else requestAnimationFrame(() => document.getElementById("register-server-error")?.focus());
         return;
       }
       if (json.data.linkedToAccount) {
@@ -192,7 +195,7 @@ function RegisterForm() {
     } catch {
       setState("error");
       setServerMessage("Can't reach the server. Check your connection and try again.");
-      requestAnimationFrame(() => alertRef.current?.focus());
+      requestAnimationFrame(() => document.getElementById("register-server-error")?.focus());
     }
   }
 
@@ -307,7 +310,7 @@ function RegisterForm() {
             <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <label className="label" htmlFor="section">Section *</label>
-                <input id="section" {...register("section")} {...aria("section")} placeholder="BSN 2-B" autoCapitalize="characters" maxLength={40} className="input" />
+                <input id="section" {...register("section")} {...aria("section")} placeholder="e.g. BSN-1A" autoCapitalize="characters" maxLength={40} className="input" />
                 <FieldError id="section-msg" message={err("section")} />
               </div>
               {(rf.year_level || selectedEvent) && (
@@ -336,7 +339,7 @@ function RegisterForm() {
             {(rf.email && !needsAccount) && (
               <div>
                 <label className="label" htmlFor="email">School email *</label>
-                <input id="email" type="email" {...register("email")} {...aria("email")} placeholder="name@nursing.edu.ph" inputMode="email" maxLength={254} className="input" autoComplete="email" />
+                <input id="email" type="email" {...register("email")} {...aria("email")} placeholder="initialssurname.student@ua.edu.ph" inputMode="email" maxLength={254} className="input" autoComplete="email" />
                 <FieldError id="email-msg" message={err("email")} />
               </div>
             )}
@@ -352,7 +355,7 @@ function RegisterForm() {
               </div>
               <div>
                 <label className="label" htmlFor="accountEmail">Email address *</label>
-                <input id="accountEmail" type="email" {...register("accountEmail")} {...aria("accountEmail")} placeholder="you@nursing.edu.ph" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input" />
+                <input id="accountEmail" type="email" {...register("accountEmail")} {...aria("accountEmail")} placeholder="initialssurname.student@ua.edu.ph" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input" />
                 <FieldError id="accountEmail-msg" message={err("accountEmail")} />
               </div>
               <div>
@@ -383,7 +386,7 @@ function RegisterForm() {
           </div>
 
           {state === "error" && serverMessage && (
-            <div ref={alertRef} role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverMessage}</div>
+            <div id="register-server-error" role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverMessage}</div>
           )}
 
           <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-[#f3f7f6]/95 backdrop-blur">

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ACTION_LABEL, message } from "@/lib/messages";
 import { CheckCircle, XCircle, Activity, Wifi, WifiOff } from "lucide-react";

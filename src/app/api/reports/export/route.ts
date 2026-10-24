@@ -1,4 +1,4 @@
-import { ok, handle } from "@/lib/api";
+import { handle } from "@/lib/api";
 import { requirePermission } from "@/lib/auth/session";
 import { exportAttendanceCsv } from "@/lib/services/attendance";
 import type { NextRequest } from "next/server";

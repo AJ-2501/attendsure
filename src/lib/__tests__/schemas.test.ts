@@ -50,6 +50,22 @@ describe("Registration schema", () => {
     const r = schema.safeParse({ ...valid, consent: false });
     expect(r.success).toBe(false);
   });
+
+  it("validates university student email when email is provided", () => {
+    expect(schema.safeParse({ ...valid, email: "jdelacruz.student@ua.edu.ph" }).success).toBe(true);
+    expect(schema.safeParse({ ...valid, email: "jdelacruz@gmail.com" }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, email: "jdelacruz@ua.edu.ph" }).success).toBe(false);
+  });
+
+  it("enforces university email when email is required by event rules", () => {
+    const emailRequiredSchema = buildRegistrationSchema({
+      ...rules,
+      requiredFields: { ...rules.requiredFields, email: true },
+    });
+    expect(emailRequiredSchema.safeParse({ ...valid, email: "jdelacruz.student@ua.edu.ph" }).success).toBe(true);
+    expect(emailRequiredSchema.safeParse({ ...valid, email: "" }).success).toBe(false);
+    expect(emailRequiredSchema.safeParse({ ...valid, email: "other@nursing.edu.ph" }).success).toBe(false);
+  });
 });
 
 describe("Sign-in schema", () => {

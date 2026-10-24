@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
-import { deriveQrToken, newQrCredential, sha256Hex } from "@/lib/crypto/tokens";
-import type { CredentialRow, RegistrationRow } from "@/lib/types";
+import { deriveQrToken, newQrCredential } from "@/lib/crypto/tokens";
+import type { CredentialRow } from "@/lib/types";
 
 /** Issue time-out QR (self-service — participant must have access token). */
 export async function selfIssueTimeOut(registrationId: string): Promise<{
