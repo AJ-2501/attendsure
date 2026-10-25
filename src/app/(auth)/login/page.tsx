@@ -13,7 +13,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
         expect="staff"
         redirectTo="/admin"
         next={next}
-        emailPlaceholder="name@nursing.edu.ph"
+        emailPlaceholder="initialssurname.student@ua.edu.ph"
         initialError={error === "not_staff" ? "Incorrect email or password." : null}
       />
       <p className="text-[13px] text-center text-[#4b6362]">

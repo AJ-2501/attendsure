@@ -11,6 +11,15 @@ export const metadata: Metadata = {
     "AttendSure is the College of Nursing's secure event attendance system with QR check-in and a real-time dashboard.",
   keywords: ["attendance", "college of nursing", "QR code", "student", "check-in"],
   robots: { index: true, follow: true },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "AttendSure", statusBarStyle: "black-translucent" },
 };
