@@ -60,7 +60,7 @@ export default async function EditEventPage({ params, searchParams }: Props) {
   return (
     <div className="flex flex-col gap-4 sm:gap-6 animate-fade-up">
       <div className="flex flex-col gap-2">
-        <Link href="/admin/events" className="self-start -ml-2 min-h-11 pl-1 pr-3 rounded-xl inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:bg-brand-50">
+        <Link href="/admin/events" prefetch={true} className="self-start -ml-2 min-h-11 pl-1 pr-3 rounded-xl inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:bg-brand-50">
           <ChevronLeft className="w-4 h-4" aria-hidden="true" /> All events
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">

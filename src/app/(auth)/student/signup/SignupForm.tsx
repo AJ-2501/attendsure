@@ -106,7 +106,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         <legend className="font-bold text-ink flex items-center gap-2 mb-1">
           <UserRound className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your details
         </legend>
-        <Field id="fullName" label="Full name" hint="e.g. Maria Clara Santos" error={errors.fullName?.message}>
+        <Field id="fullName" label="Full name" hint="e.g. Juan Dela Cruz" error={errors.fullName?.message}>
           <input id="fullName" {...register("fullName")} {...aria("fullName", true)} autoComplete="name" maxLength={120} className="input bg-[#f3f7f6]" placeholder="First and last name" />
         </Field>
         <Field id="studentId" label="Student ID" hint={`10 digits, no dash — e.g. ${STUDENT_ID_EXAMPLE}`} error={errors.studentId?.message}>
@@ -135,7 +135,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         <legend className="font-bold text-ink flex items-center gap-2 mb-1">
           <ShieldCheck className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your account
         </legend>
-        <Field id="email" label="Email address" hint="e.g. initialssurname.student@ua.edu.ph" error={errors.email?.message}>
+        <Field id="email" label="Email address" hint="e.g. jdcruz.student@ua.edu.ph" error={errors.email?.message}>
           <input id="email" type="email" {...register("email")} {...aria("email", true)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input bg-[#f3f7f6]" placeholder="initialssurname.student@ua.edu.ph" />
         </Field>
         <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
@@ -188,7 +188,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
       )}
 
       <button type="submit" disabled={busy} className="btn-primary btn-lg w-full">
-        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Creating account…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Opening your dashboard…</> : "Create account"}
+        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Registering…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Opening your dashboard…</> : "Register"}
       </button>
     </form>
   );

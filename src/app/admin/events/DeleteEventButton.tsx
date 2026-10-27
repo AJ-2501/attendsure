@@ -43,13 +43,12 @@ export default function DeleteEventButton({
       document.getElementById(`del-confirm-${eventId}`)?.focus();
       return;
     }
-    start(async () => {
-      const result = await deleteEventAction(eventId, confirm, reason);
-      if (result.ok) {
-        dialogRef.current?.close();
-        router.push("/admin/events?deleted=1");
-        router.refresh();
-      } else {
+      start(async () => {
+        const result = await deleteEventAction(eventId, confirm, reason);
+        if (result.ok) {
+          dialogRef.current?.close();
+          router.push("/admin/events?deleted=1");
+        } else {
         setError({ message: result.error, field: result.field });
         if (result.field === "reason") document.getElementById(`del-reason-${eventId}`)?.focus();
         else if (result.field === "confirm") document.getElementById(`del-confirm-${eventId}`)?.focus();

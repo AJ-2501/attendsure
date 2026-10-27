@@ -361,9 +361,14 @@ export default function PassScanScene({ className }: { className?: string }) {
       ro.observe(host);
 
       const pointer = { x: 0, y: 0 };
+      let pRaf: number | null = null;
       const onPointer = (e: PointerEvent) => {
-        pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-        pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+        if (pRaf !== null) return;
+        pRaf = requestAnimationFrame(() => {
+          pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+          pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+          pRaf = null;
+        });
       };
       window.addEventListener("pointermove", onPointer, { passive: true });
 
@@ -454,6 +459,7 @@ export default function PassScanScene({ className }: { className?: string }) {
         renderer.setAnimationLoop(null);
         io.disconnect();
         ro.disconnect();
+        if (pRaf !== null) cancelAnimationFrame(pRaf);
         window.removeEventListener("pointermove", onPointer);
         timer.dispose();
         disposables.forEach((d) => d.dispose());

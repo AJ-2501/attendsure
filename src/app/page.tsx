@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { listPublishedEvents, countRegistrations, toPublicEvent } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase } from "@/lib/time";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowDown, BadgeCheck, LockKeyhole, QrCode, ScanLine, ShieldCheck, UserRound, Zap } from "lucide-react";
 import { Logo } from "@/components/Brand";
 import CaduceusScene from "@/components/CaduceusScene";
@@ -34,16 +35,28 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Logo size="sm" />
           <nav aria-label="Sign in" className="flex items-center gap-1.5 sm:gap-2">
-            <Link href="/login" className="btn-ghost px-3 text-[#23403f]">Admin</Link>
-            <Link href="/student/login" className="btn-primary px-3.5 sm:px-4 shadow-[0_6px_16px_-6px_oklch(0.51_0.086_186/0.6)]">
+            <Link href="/login" prefetch={true} className="btn-ghost px-3 text-[#23403f]">Admin</Link>
+            <Link href="/student/login" prefetch={true} className="btn-primary px-3.5 sm:px-4 shadow-[0_6px_16px_-6px_oklch(0.51_0.086_186/0.6)]">
               <UserRound className="w-4 h-4" aria-hidden="true" /> Student login
             </Link>
           </nav>
         </div>
       </header>
 
-      <section className="hero-aurora text-white overflow-hidden">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-8 sm:pt-16 sm:pb-12 grid lg:grid-cols-[1.15fr_1fr] gap-6 items-center">
+      <section className="hero-aurora hero-photo relative text-white overflow-hidden">
+        {/* Campus photo: high-res, centered focal point on mobile, wide architectural view on desktop */}
+        <Image
+          src="/images/campus-hero.jpg"
+          alt=""
+          fill
+          priority
+          quality={90}
+          sizes="(min-width: 1536px) 1536px, 100vw"
+          className="absolute inset-0 object-cover object-[50%_60%] lg:object-center select-none pointer-events-none"
+        />
+        {/* Contrast scrim: dark emerald-teal gradient for text clarity and focus */}
+        <div className="hero-photo-scrim absolute inset-0 pointer-events-none" aria-hidden="true" />
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-8 sm:pt-16 sm:pb-12 grid lg:grid-cols-[1.15fr_1fr] gap-6 items-center">
           <div className="flex flex-col gap-4 animate-fade-up">
             <p className="self-start inline-flex items-center gap-2 rounded-full border border-mint/25 bg-mint/10 px-3 py-1 text-[12px] font-bold tracking-[0.08em] uppercase text-mint">
               <span className="live-dot w-1.5 h-1.5 rounded-full bg-mint" aria-hidden="true" />
@@ -61,7 +74,7 @@ export default async function HomePage() {
               <Link href="#events" className="btn-primary btn-lg shadow-[0_10px_30px_-10px_rgb(45_212_191/0.7)]">
                 View events <ArrowDown className="w-5 h-5" aria-hidden="true" />
               </Link>
-              <Link href="/student/signup" className="btn btn-lg border border-white/20 bg-white/5 text-white hover:bg-white/10 backdrop-blur">
+              <Link href="/student/signup" prefetch={true} className="btn btn-lg border border-white/20 bg-white/5 text-white hover:bg-white/10 backdrop-blur">
                 <ShieldCheck className="w-5 h-5" aria-hidden="true" /> Create student account
               </Link>
             </div>
@@ -103,7 +116,7 @@ export default async function HomePage() {
         <div className="mb-5 flex flex-col gap-1">
           <p className="text-xs font-bold tracking-[0.08em] uppercase text-brand-600">Calendar</p>
           <h2 id="events" className="scroll-mt-24 text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">Events</h2>
-          <p className="text-sm sm:text-[15px] text-[#4b6362]">Browse College of Nursing events and reserve your seat.</p>
+          <p className="text-sm sm:text-[15px] text-[#4b6362]">Browse College of Nursing events.</p>
         </div>
         <Suspense fallback={<div className="card h-40 animate-pulse" />}>
           <EventBrowser items={items} />

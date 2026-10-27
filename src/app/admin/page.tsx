@@ -58,7 +58,7 @@ export default async function AdminDashboard() {
           <Link
             key={label}
             href={href}
-            prefetch={href.startsWith("/api") ? false : undefined}
+            prefetch={href.startsWith("/api") ? false : true}
             className={clsx(
               "min-h-[4.5rem] rounded-2xl p-3 flex flex-col justify-between gap-2 font-semibold text-sm transition-colors",
               isPrimary ? "bg-brand-600 text-white hover:bg-brand-700 shadow-[0_8px_20px_rgb(15_118_110/0.3)]" : "card text-ink hover:border-brand-300",
@@ -80,7 +80,7 @@ export default async function AdminDashboard() {
                 {stats.timed_in.toLocaleString()} <span className="text-base font-semibold text-[#4b6362]">/ {stats.registered.toLocaleString()}</span>
               </span>
               <span className="text-sm font-semibold text-ink truncate">{primary.name}</span>
-              <Link href={`/admin/reports?event=${primary.id}`} className="text-sm font-semibold text-brand-600 inline-flex items-center gap-0.5 min-h-8">
+              <Link href={`/admin/reports?event=${primary.id}`} prefetch={true} className="text-sm font-semibold text-brand-600 inline-flex items-center gap-0.5 min-h-8">
                 Full report <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -101,7 +101,7 @@ export default async function AdminDashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-ink">All events</h2>
-          <Link href="/admin/events/new" className="btn-secondary btn-sm"><Plus className="w-4 h-4" /> New event</Link>
+          <Link href="/admin/events/new" prefetch={true} className="btn-secondary btn-sm"><Plus className="w-4 h-4" /> New event</Link>
         </div>
 
         {/* Phone: tappable list */}
@@ -110,7 +110,7 @@ export default async function AdminDashboard() {
             const status = effectiveStatus(e, now);
             return (
               <li key={e.id}>
-                <Link href={`/admin/events/${e.id}`} className="flex items-center gap-3 px-4 py-3 min-h-16 active:bg-[#f3f7f6]">
+                <Link href={`/admin/events/${e.id}`} prefetch={true} className="flex items-center gap-3 px-4 py-3 min-h-16 active:bg-[#f3f7f6]">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-ink truncate">{e.name}</p>
                     <p className="text-xs text-[#4b6362]">{formatInZone(e.starts_at, e.timezone, { dateStyle: "medium" })} · {e.venue}</p>
@@ -152,7 +152,7 @@ export default async function AdminDashboard() {
                       </td>
                       <td className="text-[#4b6362]">{e.capacity.toLocaleString()}</td>
                       <td>
-                        <Link href={`/admin/events/${e.id}`} className="text-brand-600 text-sm font-semibold hover:underline">Manage</Link>
+                        <Link href={`/admin/events/${e.id}`} prefetch={true} className="text-brand-600 text-sm font-semibold hover:underline">Manage</Link>
                       </td>
                     </tr>
                   );

@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Search, X, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
 import { formatInZone, formatTimeRange, STATUS_BADGE, STATUS_LABEL } from "@/lib/time";
@@ -28,29 +28,7 @@ function monthKey(e: PublicEvent) {
   return formatInZone(e.starts_at, e.timezone, { year: "numeric", month: "long" });
 }
 
-export function SeatsMeter({ capacity, registered, compact }: { capacity: number; registered: number; compact?: boolean }) {
-  const left = Math.max(0, capacity - registered);
-  const pct = capacity > 0 ? Math.min(100, Math.round((registered / capacity) * 100)) : 100;
-  const low = left > 0 && left <= Math.max(5, Math.ceil(capacity * 0.1));
-  return (
-    <div className={clsx("flex flex-col gap-1", compact ? "" : "w-full")}>
-      <div className="flex items-center justify-between text-xs">
-        <span className={clsx("font-semibold", left === 0 ? "text-danger-600" : low ? "text-[#8a4b06]" : "text-[#23403f]")}>
-          {left === 0 ? "Full" : low ? `Only ${left} seat${left === 1 ? "" : "s"} left` : `${left.toLocaleString()} seats left`}
-        </span>
-        <span className="text-[#4b6362]">{registered.toLocaleString()} / {capacity.toLocaleString()}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-[#e1ecea] overflow-hidden" aria-hidden="true">
-        <div
-          className={clsx("h-full rounded-full", left === 0 ? "bg-danger-500" : low ? "bg-warning-500" : "bg-brand-600")}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function EventCard({ item }: { item: EventItem }) {
+const EventCard = memo(function EventCard({ item }: { item: EventItem }) {
   const { event: e, status, regPhase, registered } = item;
   const full = registered >= e.capacity;
   const canRegister = regPhase === "open" && status !== "completed" && !full;
@@ -60,8 +38,8 @@ function EventCard({ item }: { item: EventItem }) {
   const time = formatTimeRange(e.starts_at, e.ends_at, e.timezone);
 
   return (
-    <article className="card relative p-4 flex gap-4 transition-[box-shadow,transform,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-12px_rgb(11_46_47/0.18)] focus-within:ring-2 focus-within:ring-brand-500">
-      <div className="w-14 shrink-0 h-[68px] rounded-[14px] bg-gradient-to-b from-brand-50 to-brand-100 ring-1 ring-brand-200/70 flex flex-col items-center justify-center" aria-hidden="true">
+    <article className="card relative p-4 flex gap-4 transition-[box-shadow,transform,border-color] duration-150 ease-out hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[0_14px_32px_-12px_rgb(11_46_47/0.18)] focus-within:ring-2 focus-within:ring-brand-500">
+      <div className="w-14 shrink-0 h-[68px] rounded-[14px] bg-gradient-to-b from-brand-50 to-brand-100 ring-1 ring-brand-200/70 flex flex-col items-center justify-center select-none" aria-hidden="true">
         <span className="text-[11px] font-bold tracking-wider text-brand-700">{mon}</span>
         <span className="text-[22px] font-extrabold leading-none text-ink">{day}</span>
         <span className="text-[11px] font-semibold text-brand-700">{weekday}</span>
@@ -75,8 +53,8 @@ function EventCard({ item }: { item: EventItem }) {
         </div>
 
         <h3 className="text-base font-bold leading-snug text-ink line-clamp-2">
-          {/* Stretched link: the whole card opens the event, while the Register button stays separately tappable. */}
-          <Link href={`/events/${e.id}`} className="after:absolute after:inset-0 after:rounded-[1.25rem] focus:outline-none">
+          {/* Stretched link: prefetch=true guarantees instant navigation on click */}
+          <Link href={`/events/${e.id}`} prefetch={true} className="after:absolute after:inset-0 after:rounded-[1.25rem] focus:outline-none">
             {e.name}
           </Link>
         </h3>
@@ -90,15 +68,9 @@ function EventCard({ item }: { item: EventItem }) {
           <span className="truncate">{e.venue}</span>
         </p>
 
-        {status !== "completed" && (
-          <div className="mt-1">
-            <SeatsMeter capacity={e.capacity} registered={registered} />
-          </div>
-        )}
-
         <div className="mt-2 flex gap-2">
           {canRegister ? (
-            <Link href={`/register?event=${e.id}`} className="btn-primary relative z-10 flex-1">
+            <Link href={`/register?event=${e.id}`} prefetch={true} className="btn-primary relative z-10 flex-1">
               Register
             </Link>
           ) : (
@@ -119,35 +91,45 @@ function EventCard({ item }: { item: EventItem }) {
       </div>
     </article>
   );
-}
+});
 
 export default function EventBrowser({ items }: { items: EventItem[] }) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const rawFilter = params.get("filter");
-  const filter: FilterId = FILTERS.some((f) => f.id === rawFilter) ? (rawFilter as FilterId) : "all";
+  const initialFilter: FilterId = FILTERS.some((f) => f.id === rawFilter) ? (rawFilter as FilterId) : "all";
   const urlQuery = params.get("q") ?? "";
-  const [query, setQuery] = useState(urlQuery);
 
-  // Keep filter + search in the URL so they survive refresh/back and can be shared.
-  function update(next: { filter?: FilterId; q?: string }) {
-    const sp = new URLSearchParams(params.toString());
-    const f = next.filter ?? filter;
-    const q = next.q ?? urlQuery;
-    if (f === "all") sp.delete("filter"); else sp.set("filter", f);
-    if (q.trim()) sp.set("q", q); else sp.delete("q");
-    const qs = sp.toString();
-    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  // Local state provides instantaneous (0ms) feedback without waiting for server round-trips
+  const [filter, setFilter] = useState<FilterId>(initialFilter);
+  const [query, setQuery] = useState(urlQuery);
+  const [, startTransition] = useTransition();
+
+  // Instant filter change with non-blocking URL sync
+  function handleFilterClick(f: FilterId) {
+    setFilter(f);
+    startTransition(() => {
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        if (f === "all") sp.delete("filter"); else sp.set("filter", f);
+        const qs = sp.toString();
+        window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
+      }
+    });
   }
 
-  // Debounce search → URL so typing stays smooth.
+  // Non-blocking search URL sync
   useEffect(() => {
-    if (query === urlQuery) return;
-    const t = setTimeout(() => update({ q: query }), 250);
+    const t = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        if (query.trim()) sp.set("q", query); else sp.delete("q");
+        const qs = sp.toString();
+        window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
+      }
+    }, 200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, pathname]);
 
   const counts = useMemo(
     () => Object.fromEntries(FILTERS.map((f) => [f.id, items.filter(f.match).length])) as Record<FilterId, number>,
@@ -187,7 +169,20 @@ export default function EventBrowser({ items }: { items: EventItem[] }) {
           className="input pl-11 pr-11"
         />
         {query && (
-          <button type="button" onClick={() => { setQuery(""); update({ q: "" }); }} aria-label="Clear search" className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              if (typeof window !== "undefined") {
+                const sp = new URLSearchParams(window.location.search);
+                sp.delete("q");
+                const qs = sp.toString();
+                window.history.replaceState(null, "", `${pathname}${qs ? `?${qs}` : ""}`);
+              }
+            }}
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100"
+          >
             <X className="w-[18px] h-[18px]" />
           </button>
         )}
@@ -203,9 +198,9 @@ export default function EventBrowser({ items }: { items: EventItem[] }) {
                 key={f.id}
                 type="button"
                 aria-pressed={active}
-                onClick={() => update({ filter: f.id })}
+                onClick={() => handleFilterClick(f.id)}
                 className={clsx(
-                  "min-h-11 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap transition-colors border",
+                  "min-h-11 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap transition-colors border select-none active:scale-[0.98]",
                   active ? "bg-ink text-white border-ink" : "bg-white text-[#23403f] border-[#cfdedc] hover:border-brand-400",
                 )}
               >
@@ -229,7 +224,14 @@ export default function EventBrowser({ items }: { items: EventItem[] }) {
           </p>
           <p className="text-sm">{filter === "all" && !query ? "Check back soon or ask your clinical coordinator." : "Try another filter or clear your search."}</p>
           {(filter !== "all" || query) && (
-            <button type="button" onClick={() => { setQuery(""); update({ filter: "all", q: "" }); }} className="btn-secondary mt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                handleFilterClick("all");
+              }}
+              className="btn-secondary mt-2"
+            >
               Show all events
             </button>
           )}

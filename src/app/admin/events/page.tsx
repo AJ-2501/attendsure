@@ -23,7 +23,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           <h1 className="text-xl sm:text-2xl font-bold text-ink">Events</h1>
           <p className="text-sm text-[#4b6362]">{total.toLocaleString()} event{total === 1 ? "" : "s"} · newest first</p>
         </div>
-        <Link href="/admin/events/new" className="btn-primary">
+        <Link href="/admin/events/new" prefetch={true} className="btn-primary">
           <Plus className="w-4 h-4" aria-hidden="true" /> New event
         </Link>
       </div>
@@ -38,7 +38,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         <div className="card p-10 text-center flex flex-col items-center gap-2 text-[#4b6362]">
           <CalendarPlus className="w-10 h-10 text-brand-300" aria-hidden="true" />
           <p className="font-bold text-ink">No events yet</p>
-          <Link href="/admin/events/new" className="btn-primary mt-2">Create your first event</Link>
+          <Link href="/admin/events/new" prefetch={true} className="btn-primary mt-2">Create your first event</Link>
         </div>
       ) : (
         <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -57,7 +57,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                     <span className={clsx("badge", STATUS_BADGE[status])}>{STATUS_LABEL[status]}</span>
                     {e.status === "draft" && <span className="badge badge-gray">Hidden from students</span>}
                   </div>
-                  <Link href={`/admin/events/${e.id}`} className="font-bold text-ink leading-snug hover:text-brand-700 break-words">{e.name}</Link>
+                  <Link href={`/admin/events/${e.id}`} prefetch={true} className="font-bold text-ink leading-snug hover:text-brand-700 break-words">{e.name}</Link>
                   <p className="text-[13px] text-[#4b6362]">{formatTimeRange(e.starts_at, e.ends_at, e.timezone)}</p>
                   <p className="text-[13px] text-[#4b6362] flex items-center gap-1.5 min-w-0">
                     <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> <span className="truncate">{e.venue}</span>
@@ -70,7 +70,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <Link href={`/admin/events/${e.id}`} className="btn-secondary flex-1">
+                    <Link href={`/admin/events/${e.id}`} prefetch={true} className="btn-secondary flex-1">
                       <Pencil className="w-4 h-4" aria-hidden="true" /> Edit
                     </Link>
                     {e.status === "published" && (

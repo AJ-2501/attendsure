@@ -66,7 +66,7 @@ export default async function ParticipantDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-2xl">
-      <Link href={`/admin/participants?event=${reg.event_id}`} className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
+      <Link href={`/admin/participants?event=${reg.event_id}`} prefetch={true} className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
         <ArrowLeft className="w-4 h-4" /> Back to participants
       </Link>
       <div className="flex items-center gap-3">

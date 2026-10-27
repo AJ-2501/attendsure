@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import AuthShell from "@/components/AuthShell";
 import SignInForm from "@/components/SignInForm";
 
@@ -18,11 +17,6 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
       />
       <p className="text-[13px] text-center text-[#4b6362]">
         Forgot your password? Contact the College of Nursing office.
-        <br />
-        Student nurse?{" "}
-        <Link href="/student/login" className="font-semibold text-brand-600 hover:text-brand-700 underline-offset-2 hover:underline">
-          Go to student sign in
-        </Link>
       </p>
     </AuthShell>
   );

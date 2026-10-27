@@ -28,6 +28,7 @@ export default function AdminShell({ displayName, email, role, children }: Props
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Close the drawer on navigation and with Escape.
   useEffect(() => {
@@ -37,9 +38,14 @@ export default function AdminShell({ displayName, email, role, children }: Props
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
+  useEffect(() => {
+    router.prefetch("/login");
+  }, [router]);
+
   async function signOut() {
+    setSigningOut(true);
     await createClient().auth.signOut();
-    router.push("/login");
+    router.replace("/login");
     router.refresh();
   }
 
@@ -50,8 +56,8 @@ export default function AdminShell({ displayName, email, role, children }: Props
     <div className="border-t border-[#dce7e5] p-4">
       <p className="text-sm font-semibold text-ink truncate">{displayName ?? email}</p>
       <p className="text-xs text-[#4b6362] capitalize">{role.replace("_", " ")}</p>
-      <button onClick={signOut} className="btn-ghost w-full justify-start gap-2 mt-2 text-[#4b6362]">
-        <LogOut className="w-4 h-4" /> Sign out
+      <button onClick={signOut} disabled={signingOut} className="btn-ghost w-full justify-start gap-2 mt-2 text-[#4b6362]">
+        <LogOut className="w-4 h-4" /> {signingOut ? "Signing out…" : "Sign out"}
       </button>
     </div>
   );
@@ -62,6 +68,7 @@ export default function AdminShell({ displayName, email, role, children }: Props
         <Link
           key={href}
           href={href}
+          prefetch={true}
           onClick={() => setDrawerOpen(false)}
           aria-current={isActive(href, exact) ? "page" : undefined}
           className={clsx("sidebar-link min-h-11", isActive(href, exact) && "active")}
@@ -139,17 +146,17 @@ export default function AdminShell({ displayName, email, role, children }: Props
       {/* Mobile bottom tab bar */}
       <nav className="tabbar lg:hidden" aria-label="Quick navigation">
         {tabs.map(({ href, icon: Icon, label, exact }) => (
-          <Link key={href} href={href} className={clsx("tab-link", isActive(href, exact) && "active")} aria-current={isActive(href, exact) ? "page" : undefined}>
+          <Link key={href} href={href} prefetch={true} className={clsx("tab-link", isActive(href, exact) && "active")} aria-current={isActive(href, exact) ? "page" : undefined}>
             <Icon className="w-[22px] h-[22px]" />
             {label}
           </Link>
         ))}
-        <Link href="/admin/scanner" className={clsx("tab-link", isActive("/admin/scanner") && "active")} aria-current={isActive("/admin/scanner") ? "page" : undefined}>
+        <Link href="/admin/scanner" prefetch={true} className={clsx("tab-link", isActive("/admin/scanner") && "active")} aria-current={isActive("/admin/scanner") ? "page" : undefined}>
           <span className="tab-scan"><ScanLine className="w-[26px] h-[26px]" /></span>
           Scan
         </Link>
         {tabsRight.map(({ href, icon: Icon, label }) => (
-          <Link key={href} href={href} className={clsx("tab-link", isActive(href) && "active")} aria-current={isActive(href) ? "page" : undefined}>
+          <Link key={href} href={href} prefetch={true} className={clsx("tab-link", isActive(href) && "active")} aria-current={isActive(href) ? "page" : undefined}>
             <Icon className="w-[22px] h-[22px]" />
             {label}
           </Link>

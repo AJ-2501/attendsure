@@ -8,7 +8,7 @@ import { getPublishedEvent } from "@/lib/services/events";
 import { registrationPhase } from "@/lib/time";
 import SignupForm from "./SignupForm";
 
-export const metadata: Metadata = { title: "Create student account", robots: { index: false } };
+export const metadata: Metadata = { title: "Register", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function StudentSignupPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
@@ -21,7 +21,7 @@ export default async function StudentSignupPage({ searchParams }: { searchParams
   const loginHref = `/student/login${event ? `?next=${encodeURIComponent(`/me?register=${event.id}`)}` : ""}`;
 
   return (
-    <AuthShell role="student" title="Create your student account" subtitle="Sign up once. Get a QR pass for any event with one tap.">
+    <AuthShell role="student" title={event ? `Register: ${event.name}` : "Student registration"} subtitle="Sign up once. Get a QR pass for any event with one tap.">
       <SignupForm event={event} />
       <p className="text-[13px] text-center text-[#4b6362]">
         Already have an account?{" "}

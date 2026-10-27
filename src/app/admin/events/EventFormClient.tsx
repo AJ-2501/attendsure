@@ -148,7 +148,6 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       const result = await onSubmit(data);
       if (result.ok && result.id) {
         router.push(`/admin/events/${result.id}?saved=1`);
-        router.refresh();
         return;
       }
       const fieldEntries = Object.entries(result.fields ?? {});

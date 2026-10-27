@@ -291,7 +291,7 @@ function RegisterForm() {
 
             <div>
               <label className="label" htmlFor="fullName">Full name *</label>
-              <input id="fullName" {...register("fullName")} {...aria("fullName")} placeholder="Maria Clara Santos" maxLength={120} className="input" autoComplete="name" />
+              <input id="fullName" {...register("fullName")} {...aria("fullName")} placeholder="Juan Dela Cruz" maxLength={120} className="input" autoComplete="name" />
               <FieldError id="fullName-msg" message={err("fullName")} />
             </div>
 

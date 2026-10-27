@@ -169,20 +169,36 @@ export async function getPublishedEvent(id: string): Promise<EventRow | null> {
   return data;
 }
 
-/** Active registration count per event (head-only count queries; no rows transferred). */
+/** Active registration count per event (single batched query to avoid N parallel network requests). */
 export async function countRegistrations(eventIds: string[]): Promise<Record<string, number>> {
+  if (eventIds.length === 0) return {};
+  const counts: Record<string, number> = {};
+  for (const id of eventIds) counts[id] = 0;
+
   const db = createAdminClient();
-  const entries = await Promise.all(
-    eventIds.map(async (id) => {
-      const { count } = await db
-        .from("registrations")
-        .select("id", { count: "exact", head: true })
-        .eq("event_id", id)
-        .eq("registration_status", "registered");
-      return [id, count ?? 0] as const;
-    }),
-  );
-  return Object.fromEntries(entries);
+  if (eventIds.length === 1) {
+    const id = eventIds[0];
+    const { count } = await db
+      .from("registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", id)
+      .eq("registration_status", "registered");
+    counts[id] = count ?? 0;
+    return counts;
+  }
+
+  const { data, error } = await db
+    .from("registrations")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .eq("registration_status", "registered");
+
+  if (!error && data) {
+    for (const r of data) {
+      if (r.event_id) counts[r.event_id] = (counts[r.event_id] || 0) + 1;
+    }
+  }
+  return counts;
 }
 
 export type DeleteEventResult =

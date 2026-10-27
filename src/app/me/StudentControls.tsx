@@ -334,7 +334,7 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
         <p className="text-sm text-[#4b6362]">Used when you get a QR pass for an event. Your name and student ID are stored encrypted.</p>
         <div>
           <label htmlFor="p-fullName" className="label">Full name</label>
-          <input id="p-fullName" name="fullName" defaultValue={v.fullName} maxLength={120} className="input" autoComplete="name" placeholder="e.g. Maria Clara Santos" {...aria("fullName")} />
+          <input id="p-fullName" name="fullName" defaultValue={v.fullName} maxLength={120} className="input" autoComplete="name" placeholder="e.g. Juan Dela Cruz" {...aria("fullName")} />
           {err("fullName")}
         </div>
         <div>

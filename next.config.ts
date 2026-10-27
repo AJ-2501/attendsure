@@ -16,6 +16,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  images: { qualities: [75, 90] },
   // Pin the project root so the dev server only watches this folder (not all of C:\).
   outputFileTracingRoot: path.join(__dirname),
   turbopack: {

@@ -5,7 +5,6 @@ import { clsx } from "clsx";
 import { CalendarDays, ChevronLeft, Clock, MapPin, Building2, LogIn, LogOut, ClipboardEdit, QrCode, ScanLine } from "lucide-react";
 import { getPublishedEvent, countRegistrations } from "@/lib/services/events";
 import { effectiveStatus, formatInZone, formatTimeRange, registrationPhase, STATUS_BADGE, STATUS_LABEL, timeOutWindow, zoneAbbrev } from "@/lib/time";
-import { SeatsMeter } from "@/components/EventBrowser";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +72,7 @@ export default async function EventDetailPage({ params }: Props) {
     <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <header className="sticky top-0 z-20 bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto h-14 px-2 flex items-center gap-1">
-          <Link href="/#events" aria-label="Back to events" className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/10">
+          <Link href="/#events" prefetch={true} aria-label="Back to events" className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/10">
             <ChevronLeft className="w-[22px] h-[22px]" />
           </Link>
           <span className="text-[15px] font-semibold truncate">Event details</span>
@@ -94,11 +93,6 @@ export default async function EventDetailPage({ params }: Props) {
       </section>
 
       <main className="max-w-3xl mx-auto px-4 -mt-5 flex flex-col gap-4 relative">
-        {status !== "completed" && status !== "cancelled" && (
-          <div className="card p-4">
-            <SeatsMeter capacity={event.capacity} registered={registered} />
-          </div>
-        )}
 
         {event.description && (
           <section className="card p-5" aria-labelledby="about">
@@ -146,7 +140,7 @@ export default async function EventDetailPage({ params }: Props) {
       <div className="fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur border-t border-[#dce7e5] pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {canRegister ? (
-            <Link href={`/register?event=${event.id}`} className="btn-primary btn-lg w-full">Register for this event</Link>
+            <Link href={`/register?event=${event.id}`} prefetch={true} className="btn-primary btn-lg w-full">Register for this event</Link>
           ) : (
             <p className="min-h-[3.25rem] flex items-center justify-center text-center text-sm font-semibold text-[#4b6362] rounded-[0.875rem] bg-[#f3f7f6] px-4">{cta}</p>
           )}

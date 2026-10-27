@@ -1,11 +1,16 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
-import { BadgeCheck, GraduationCap, QrCode, ScanLine, ShieldCheck } from "lucide-react";
+import { BadgeCheck, LogIn, QrCode, ScanLine, UserPlus } from "lucide-react";
 import { LogoMark } from "@/components/Brand";
-import PassScanScene from "@/components/PassScanScene";
+
+const PassScanScene = dynamic(() => import("@/components/PassScanScene"), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0" aria-hidden="true" />,
+});
 
 type Role = "student" | "admin";
 const roleOf = (pathname: string): Role => (pathname.startsWith("/login") ? "admin" : "student");
@@ -57,57 +62,89 @@ export function AuthVisual() {
   );
 }
 
-/** Student/Admin segmented switch; the pill springs across and recolours as soon as it is tapped. */
+/**
+ * Segmented auth switch:
+ * - For event / student registration flows: toggles between "Register" and "Student sign in"
+ * - For staff login (/login): hidden completely (no other sign in buttons)
+ */
 export function RoleSwitch() {
   const pathname = usePathname();
-  const role = roleOf(pathname);
-  // Optimistic: move the pill on tap, while the route loads. Ignored once the URL changes.
-  const [pending, setPending] = useState<{ role: Role; from: string } | null>(null);
-  const shown = pending && pending.from === pathname ? pending.role : role;
+  const searchParams = useSearchParams();
+  const [pending, setPending] = useState<"left" | "right" | null>(null);
 
-  const item = (r: Role, href: string, label: string, Icon: typeof GraduationCap) => (
-    <Link
-      href={href}
-      onClick={() => r !== role && setPending({ role: r, from: pathname })}
-      aria-current={role === r ? "page" : undefined}
-      className={clsx(
-        "relative z-10 min-h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-colors duration-300",
-        shown === r ? (r === "admin" ? "text-white" : "text-ink") : "text-[#4b6362] hover:text-ink",
-      )}
-    >
-      <Icon className={clsx("w-4 h-4 transition-transform duration-500", shown === r && "scale-110")} aria-hidden="true" />
-      {label}
-    </Link>
-  );
+  const isStudent = pathname.startsWith("/student");
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  const activeTab: "left" | "right" = pathname.startsWith("/student/signup") ? "left" : "right";
+  const shown = pending ?? activeTab;
+
+  // Clear pending state once pathname changes
+  if (pending && pending === activeTab) {
+    setPending(null);
+  }
+
+  // When on Admin sign in, completely remove other sign-in options/buttons
+  if (!isStudent) {
+    return null;
+  }
+
+  const leftItem = {
+    href: `/student/signup${qs}`,
+    label: "Register",
+    icon: UserPlus,
+  };
+
+  const rightItem = {
+    href: `/student/login${qs}`,
+    label: "Student sign in",
+    icon: LogIn,
+  };
 
   return (
-    <nav aria-label="Sign-in type" className="relative grid grid-cols-2 p-1 rounded-2xl bg-[#e4eeec] ring-1 ring-inset ring-[#d3e2df]">
+    <nav aria-label="Authentication mode" className="relative grid grid-cols-2 p-1 rounded-2xl bg-[#e4eeec] ring-1 ring-inset ring-[#d3e2df]">
       <span
         aria-hidden="true"
         className={clsx(
-          "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-xl transition-[transform,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]",
-          shown === "admin"
-            ? "translate-x-full bg-ink shadow-[0_6px_16px_-4px_rgb(11_46_47/0.5)]"
+          "absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-xl transition-[transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.34,1.4,0.64,1)]",
+          shown === "right"
+            ? "translate-x-full bg-white shadow-[0_4px_12px_-4px_rgb(11_46_47/0.25)]"
             : "translate-x-0 bg-white shadow-[0_4px_12px_-4px_rgb(11_46_47/0.25)]",
         )}
       />
-      {item("student", "/student/login", "Student", GraduationCap)}
-      {item("admin", "/login", "Admin", ShieldCheck)}
+      <Link
+        href={leftItem.href}
+        prefetch={true}
+        onClick={() => activeTab !== "left" && setPending("left")}
+        aria-current={shown === "left" ? "page" : undefined}
+        className={clsx(
+          "relative z-10 min-h-11 rounded-xl flex items-center justify-center gap-1.5 sm:gap-2 px-2 text-xs sm:text-sm font-bold transition-colors duration-200",
+          shown === "left" ? "text-ink" : "text-[#4b6362] hover:text-ink",
+        )}
+      >
+        <leftItem.icon className={clsx("w-4 h-4 shrink-0 transition-transform duration-300", shown === "left" && "scale-110 text-brand-600")} aria-hidden="true" />
+        <span className="truncate">{leftItem.label}</span>
+      </Link>
+      <Link
+        href={rightItem.href}
+        prefetch={true}
+        onClick={() => activeTab !== "right" && setPending("right")}
+        aria-current={shown === "right" ? "page" : undefined}
+        className={clsx(
+          "relative z-10 min-h-11 rounded-xl flex items-center justify-center gap-1.5 sm:gap-2 px-2 text-xs sm:text-sm font-bold transition-colors duration-200",
+          shown === "right" ? "text-ink" : "text-[#4b6362] hover:text-ink",
+        )}
+      >
+        <rightItem.icon className={clsx("w-4 h-4 shrink-0 transition-transform duration-300", shown === "right" && "scale-110 text-brand-600")} aria-hidden="true" />
+        <span className="truncate">{rightItem.label}</span>
+      </Link>
     </nav>
   );
 }
 
-/** Re-plays the entrance on each route: slides toward the role that was picked, fades up otherwise. */
+/** Re-plays the entrance animation cleanly on route change. */
 export function AuthStage({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [last, setLast] = useState({ path: pathname, enter: "auth-enter-up" });
-  if (last.path !== pathname) {
-    const from = roleOf(last.path);
-    const to = roleOf(pathname);
-    setLast({ path: pathname, enter: from === to ? "auth-enter-up" : to === "admin" ? "auth-enter-right" : "auth-enter-left" });
-  }
   return (
-    <div key={pathname} className={clsx("auth-stagger flex flex-col gap-5", last.enter)}>
+    <div key={pathname} className="auth-stagger flex flex-col gap-5 animate-fade-up">
       {children}
     </div>
   );

@@ -66,8 +66,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
             <span>Page {page} of {Math.ceil(total / 25)}</span>
             <div className="flex gap-2">
-              {page > 1 && <Link href={`?event=${eventId}&page=${page - 1}`} className="btn-secondary btn-sm">← Prev</Link>}
-              {page < Math.ceil(total / 25) && <Link href={`?event=${eventId}&page=${page + 1}`} className="btn-primary btn-sm">Next →</Link>}
+              {page > 1 && <Link href={`?event=${eventId}&page=${page - 1}`} prefetch={true} className="btn-secondary btn-sm">← Prev</Link>}
+              {page < Math.ceil(total / 25) && <Link href={`?event=${eventId}&page=${page + 1}`} prefetch={true} className="btn-primary btn-sm">Next →</Link>}
             </div>
           </div>
         )}

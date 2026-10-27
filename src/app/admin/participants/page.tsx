@@ -8,6 +8,7 @@ import { clsx } from "clsx";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import type { RegistrationRow } from "@/lib/types";
+import ParticipantFilters from "./ParticipantFilters";
 
 export const metadata: Metadata = { title: "Participants" };
 
@@ -71,33 +72,13 @@ export default async function ParticipantsPage({
       </div>
 
       {/* Filters */}
-      <form className="card p-3 sm:p-4 grid grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-3 items-end" method="GET">
-        <div className="col-span-2 lg:col-span-1 min-w-0">
-          <label htmlFor="f-event" className="label">Event</label>
-          <select id="f-event" name="event" className="input" defaultValue={activeEventId}>
-            {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        </div>
-        <div className="col-span-2 lg:col-span-1 min-w-0">
-          <label htmlFor="f-q" className="label">Search</label>
-          <input id="f-q" type="search" name="q" defaultValue={q} placeholder="Name or reference code" className="input" enterKeyHint="search" />
-        </div>
-        <div className="min-w-0">
-          <label htmlFor="f-section" className="label">Section</label>
-          <input id="f-section" name="section" defaultValue={section} placeholder="e.g. BSN-1A" className="input" autoCapitalize="characters" />
-        </div>
-        <div className="min-w-0">
-          <label htmlFor="f-status" className="label">Status</label>
-          <select id="f-status" name="status" className="input" defaultValue={status}>
-            <option value="">All</option>
-            <option value="absent">Not arrived</option>
-            <option value="checked_in">Checked in</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-        <button type="submit" className="btn-primary col-span-2 lg:col-span-1">Apply filters</button>
-      </form>
+      <ParticipantFilters
+        events={events}
+        activeEventId={activeEventId}
+        q={q}
+        section={section}
+        status={status}
+      />
 
       {(() => {
         const tz = activeEvent?.timezone ?? "UTC";
@@ -117,7 +98,7 @@ export default async function ParticipantsPage({
               {items.length === 0 && <li className="py-10 text-center text-sm text-[#4b6362]">No registrations found.</li>}
               {items.map(({ reg, name, attStatus, timeIn, timeOut }) => (
                 <li key={reg.id}>
-                  <Link href={`/admin/participants/${reg.id}`} className="flex items-center gap-3 px-4 py-3 active:bg-[#f3f7f6]">
+                  <Link href={`/admin/participants/${reg.id}`} prefetch={true} className="flex items-center gap-3 px-4 py-3 active:bg-[#f3f7f6]">
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-ink truncate">{name}</p>
                       <p className="text-xs text-[#4b6362]"><span className="font-mono">{reg.reference_code}</span> · {reg.section}</p>
@@ -156,7 +137,7 @@ export default async function ParticipantsPage({
                       <td className="text-xs text-[#4b6362] whitespace-nowrap">{timeOut}</td>
                       <td><span className={clsx("badge whitespace-nowrap", STATUS_CLASS[attStatus] ?? "badge-gray")}>{label(attStatus)}</span></td>
                       <td>
-                        <Link href={`/admin/participants/${reg.id}`} className="text-brand-600 text-sm font-semibold hover:underline">View</Link>
+                        <Link href={`/admin/participants/${reg.id}`} prefetch={true} className="text-brand-600 text-sm font-semibold hover:underline">View</Link>
                       </td>
                     </tr>
                   ))}
@@ -168,10 +149,10 @@ export default async function ParticipantsPage({
             <span>Page {page} of {Math.ceil(total / 25)}</span>
             <div className="flex gap-2">
               {page > 1 && (
-                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page - 1) })}`} className="btn-secondary">← Prev</Link>
+                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page - 1) })}`} prefetch={true} className="btn-secondary">← Prev</Link>
               )}
               {page < Math.ceil(total / 25) && (
-                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page + 1) })}`} className="btn-primary">Next →</Link>
+                <Link href={`?${new URLSearchParams({ event: activeEventId, q, section, status, page: String(page + 1) })}`} prefetch={true} className="btn-primary">Next →</Link>
               )}
             </div>
           </div>
