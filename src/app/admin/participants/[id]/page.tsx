@@ -5,11 +5,10 @@ import { clsx } from "clsx";
 import { ArrowLeft } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getEventById } from "@/lib/services/events";
 import { decryptIdentity, maskStudentId } from "@/lib/services/registrations";
 import { getCredentialStatus } from "@/lib/services/credentials";
 import { formatInZone } from "@/lib/time";
-import type { AttendanceRow, RegistrationRow } from "@/lib/types";
+import type { AttendanceRow, EventRow, RegistrationRow } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Participant" };
 
@@ -25,19 +24,18 @@ const STATUS_CLASS: Record<string, string> = {
 };
 
 export default async function ParticipantDetailPage({ params }: Props) {
-  await requirePagePermission("participants.view");
-  const { id } = await params;
+  const [, { id }] = await Promise.all([requirePagePermission("participants.view"), params]);
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
+  // One parallel batch: registration (with its event embedded), attendance and credentials all key off the id.
   const db = createAdminClient();
-  const { data: reg } = await db.from("registrations").select("*").eq("id", id).maybeSingle<RegistrationRow>();
-  if (!reg) notFound();
-
-  const [event, { data: att }, credentials] = await Promise.all([
-    getEventById(reg.event_id),
-    db.from("attendance_records").select("*").eq("registration_id", reg.id).maybeSingle<AttendanceRow>(),
-    getCredentialStatus(reg.id),
+  const [{ data: row }, { data: att }, credentials] = await Promise.all([
+    db.from("registrations").select("*, events(*)").eq("id", id).maybeSingle<RegistrationRow & { events: EventRow | null }>(),
+    db.from("attendance_records").select("*").eq("registration_id", id).maybeSingle<AttendanceRow>(),
+    getCredentialStatus(id),
   ]);
+  if (!row) notFound();
+  const { events: event, ...reg } = row;
   const tz = event?.timezone ?? "UTC";
 
   let fullName = "(unable to decrypt)";
@@ -69,17 +67,17 @@ export default async function ParticipantDetailPage({ params }: Props) {
       <Link href={`/admin/participants?event=${reg.event_id}`} prefetch={true} className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline">
         <ArrowLeft className="w-4 h-4" /> Back to participants
       </Link>
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">{fullName}</h1>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words min-w-0">{fullName}</h1>
         <span className={clsx("badge", STATUS_CLASS[status] ?? "badge-gray")}>{status.replace("_", " ")}</span>
       </div>
 
-      <div className="card p-6">
-        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 text-sm">
+      <div className="card p-4 sm:p-6">
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 sm:gap-x-6 gap-y-3 text-sm">
           {rows.map(([label, value]) => (
             <div key={label} className="contents">
               <dt className="text-slate-500">{label}</dt>
-              <dd className="text-slate-900">{value}</dd>
+              <dd className="text-slate-900 min-w-0 break-words">{value}</dd>
             </div>
           ))}
         </dl>
@@ -87,7 +85,24 @@ export default async function ParticipantDetailPage({ params }: Props) {
 
       <div className="card overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-900">QR Credentials</div>
-        <div className="overflow-x-auto">
+        {/* Phone: stacked credentials */}
+        <ul className="sm:hidden divide-y divide-[#eef4f3]">
+          {credentials.length === 0 && <li className="py-8 text-center text-sm text-slate-400">No credentials issued.</li>}
+          {credentials.map((c) => (
+            <li key={c.id} className="px-4 py-3 flex flex-col gap-1 text-sm min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-900 capitalize">{c.action.replace("_", " ")}</span>
+                <span className={c.revoked_at ? "badge badge-red" : c.used_at ? "badge badge-gray" : "badge badge-green"}>
+                  {c.revoked_at ? "Revoked" : c.used_at ? "Used" : "Active"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">Issued {formatInZone(c.created_at, tz)}</p>
+              <p className="text-xs text-slate-500">{c.used_at ? `Used ${formatInZone(c.used_at, tz)}` : `Expires ${formatInZone(c.expires_at, tz)}`}</p>
+            </li>
+          ))}
+        </ul>
+        {/* Tablet & desktop: table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="table-auto w-full">
             <thead>
               <tr>

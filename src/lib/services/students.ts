@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/server";
 import { FIELD, tdesDecrypt, tdesEncrypt } from "@/lib/crypto/tdes";
 import { deriveQrToken, newAccessToken, studentIdDigest } from "@/lib/crypto/tokens";
@@ -54,8 +55,10 @@ export async function deleteStudentUser(userId: string) {
 /** Attach a registration to an account and remember the account's student ID. */
 export async function linkRegistration(profileId: string, registrationId: string, digest: string) {
   const db = createAdminClient();
-  await db.from("registrations").update({ linked_profile_id: profileId }).eq("id", registrationId);
-  await db.from("profiles").update({ student_id_digest: digest }).eq("id", profileId).is("student_id_digest", null);
+  await Promise.all([
+    db.from("registrations").update({ linked_profile_id: profileId }).eq("id", registrationId),
+    db.from("profiles").update({ student_id_digest: digest }).eq("id", profileId).is("student_id_digest", null),
+  ]);
 }
 
 /** The student ID digest an account is tied to, if any. */
@@ -102,11 +105,10 @@ export type ClaimResult = { ok: true } | { ok: false; code: "INVALID_PROOF" | "A
 
 /** Signed-in student adds an older registration to their dashboard. */
 export async function claimRegistration(profileId: string, studentId: string, referenceCode: string): Promise<ClaimResult> {
-  const reg = await findProvenRegistration(studentId, referenceCode);
+  const [reg, digest] = await Promise.all([findProvenRegistration(studentId, referenceCode), getProfileDigest(profileId)]);
   if (!reg) return { ok: false, code: "INVALID_PROOF" };
   if (reg.linked_profile_id === profileId) return { ok: true };
   if (reg.linked_profile_id) return { ok: false, code: "ALREADY_CLAIMED" };
-  const digest = await getProfileDigest(profileId);
   if (digest && digest !== reg.digest) return { ok: false, code: "OTHER_STUDENT" };
   await linkRegistration(profileId, reg.id, reg.digest);
   return { ok: true };
@@ -139,9 +141,11 @@ function mask(id: string) {
   return id.length <= 4 ? "•".repeat(id.length) : id.slice(0, 4) + "•".repeat(Math.max(0, id.length - 6)) + id.slice(-2);
 }
 
+type CredJoin = Pick<CredentialRow, "id" | "action" | "expires_at" | "created_at" | "used_at" | "revoked_at">;
 type RegJoin = Pick<RegistrationRow, "id" | "reference_code" | "registration_status" | "section" | "participant_name_encrypted" | "student_id_encrypted" | "registered_at"> & {
   events: StudentEventRecord["event"] | null;
   attendance_records: StudentEventRecord["attendance"] | StudentEventRecord["attendance"][] | null;
+  qr_credentials: CredJoin[] | null;
 };
 
 export async function getStudentDashboard(profileId: string): Promise<StudentDashboard> {
@@ -151,23 +155,13 @@ export async function getStudentDashboard(profileId: string): Promise<StudentDas
     .select(
       "id, reference_code, registration_status, section, participant_name_encrypted, student_id_encrypted, registered_at, " +
         "events(id, name, venue, timezone, starts_at, ends_at, allow_time_in, allow_time_out, require_time_out, time_in_opens_at, time_in_closes_at, time_out_opens_at, time_out_closes_at, time_out_qr_ttl_seconds), " +
-        "attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status)",
+        "attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status), " +
+        // Credentials embedded in the same request (one round trip instead of two).
+        "qr_credentials(id, action, expires_at, created_at, used_at, revoked_at)",
     )
     .eq("linked_profile_id", profileId)
     .returns<RegJoin[]>();
   const rows = (data ?? []).filter((r) => r.events);
-
-  const ids = rows.map((r) => r.id);
-  const { data: creds } = ids.length
-    ? await db
-        .from("qr_credentials")
-        .select("id, registration_id, action, expires_at, created_at")
-        .in("registration_id", ids)
-        .is("used_at", null)
-        .is("revoked_at", null)
-        .order("created_at", { ascending: false })
-        .returns<Pick<CredentialRow, "id" | "registration_id" | "action" | "expires_at" | "created_at">[]>()
-    : { data: [] };
   const now = Date.now();
 
   let fullName: string | null = null;
@@ -185,7 +179,9 @@ export async function getStudentDashboard(profileId: string): Promise<StudentDas
       const ev = r.events!;
       const att = Array.isArray(r.attendance_records) ? (r.attendance_records[0] ?? null) : r.attendance_records;
       const active = r.registration_status === "registered" && now < Date.parse(ev.ends_at) + 2 * 3600_000;
-      const mine = (creds ?? []).filter((c) => c.registration_id === r.id);
+      const mine = (r.qr_credentials ?? [])
+        .filter((c) => !c.used_at && !c.revoked_at)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
       const tin = mine.find((c) => c.action === "time_in");
       const tout = mine.find((c) => c.action === "time_out" && c.expires_at && Date.parse(c.expires_at) > now);
       return {
@@ -240,15 +236,18 @@ export async function reissuePassLink(profileId: string, registrationId: string)
 
 /** Details to prefill a registration form: saved profile first, else the latest registration. */
 export async function getStudentPrefill(profileId: string) {
-  const saved = await getStudentProfile(profileId);
+  // Both lookups in parallel: the fallback costs one cheap indexed read but saves a round trip.
+  const [saved, { data }] = await Promise.all([
+    getStudentProfile(profileId),
+    createAdminClient()
+      .from("registrations")
+      .select("participant_name_encrypted, student_id_encrypted, section, year_level, department, email_encrypted, registered_at")
+      .eq("linked_profile_id", profileId)
+      .order("registered_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<Pick<RegistrationRow, "participant_name_encrypted" | "student_id_encrypted" | "section" | "year_level" | "department" | "email_encrypted">>(),
+  ]);
   if (saved) return saved;
-  const { data } = await createAdminClient()
-    .from("registrations")
-    .select("participant_name_encrypted, student_id_encrypted, section, year_level, department, email_encrypted, registered_at")
-    .eq("linked_profile_id", profileId)
-    .order("registered_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<Pick<RegistrationRow, "participant_name_encrypted" | "student_id_encrypted" | "section" | "year_level" | "department" | "email_encrypted">>();
   if (!data) return null;
   try {
     return {
@@ -311,7 +310,7 @@ export async function signUpStudent(raw: unknown): Promise<ProfileSignupResult> 
 type ProfileRow = { full_name_encrypted: string | null; student_id_encrypted: string | null; section: string | null; year_level: string | null; department: string | null };
 
 /** Saved student details (decrypted server-side); null if the student has no saved profile yet. */
-export async function getStudentProfile(profileId: string): Promise<StudentProfile | null> {
+export const getStudentProfile = cache(async (profileId: string): Promise<StudentProfile | null> => {
   const { data, error } = await createAdminClient()
     .from("profiles")
     .select("full_name_encrypted, student_id_encrypted, section, year_level, department")
@@ -329,7 +328,7 @@ export async function getStudentProfile(profileId: string): Promise<StudentProfi
   } catch {
     return null;
   }
-}
+});
 
 export type QuickRegisterResult =
   | { ok: true; referenceCode: string }
@@ -400,14 +399,16 @@ export async function updateStudentProfile(profileId: string, raw: unknown): Pro
 /** Published events open for registration that this student hasn't joined yet. */
 export async function listOpenEventsForStudent(profileId: string) {
   const now = new Date();
-  const events = (await listPublishedEvents()).filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
+  const [published, { data }] = await Promise.all([
+    listPublishedEvents(),
+    createAdminClient()
+      .from("registrations")
+      .select("event_id")
+      .eq("linked_profile_id", profileId)
+      .returns<{ event_id: string }[]>(),
+  ]);
+  const events = published.filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
   if (!events.length) return [];
-  const { data } = await createAdminClient()
-    .from("registrations")
-    .select("event_id")
-    .eq("linked_profile_id", profileId)
-    .in("event_id", events.map((e) => e.id))
-    .returns<{ event_id: string }[]>();
   const joined = new Set((data ?? []).map((r) => r.event_id));
   return events
     .filter((e) => !joined.has(e.id))

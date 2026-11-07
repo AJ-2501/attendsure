@@ -6,6 +6,7 @@ import { CalendarDays, Clock, MapPin, Search, X, ChevronRight } from "lucide-rea
 import { clsx } from "clsx";
 import { formatInZone, formatTimeRange, STATUS_BADGE, STATUS_LABEL } from "@/lib/time";
 import type { EffectiveStatus, PublicEvent } from "@/lib/types";
+import { SHOW_EVENTS } from "./JumpToEvents";
 
 export interface EventItem {
   event: PublicEvent;
@@ -22,7 +23,7 @@ const FILTERS = [
   { id: "upcoming", label: "Upcoming", match: (i: EventItem) => i.status === "upcoming" || i.status === "open" },
   { id: "past", label: "Past", match: (i: EventItem) => i.status === "completed" },
 ] as const;
-type FilterId = (typeof FILTERS)[number]["id"];
+export type FilterId = (typeof FILTERS)[number]["id"];
 
 function monthKey(e: PublicEvent) {
   return formatInZone(e.starts_at, e.timezone, { year: "numeric", month: "long" });
@@ -117,6 +118,16 @@ export default function EventBrowser({ items }: { items: EventItem[] }) {
       }
     });
   }
+
+  // Hero links ("N events open for registration") can switch the filter from outside.
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const f = (e as CustomEvent<FilterId>).detail;
+      if (FILTERS.some((x) => x.id === f)) handleFilterClick(f);
+    };
+    window.addEventListener(SHOW_EVENTS, onShow);
+    return () => window.removeEventListener(SHOW_EVENTS, onShow);
+  });
 
   // Non-blocking search URL sync
   useEffect(() => {
@@ -222,7 +233,7 @@ export default function EventBrowser({ items }: { items: EventItem[] }) {
           <p className="font-semibold text-ink">
             {query ? `No events match “${query}”.` : filter === "all" ? "No events available right now." : `No ${FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} events.`}
           </p>
-          <p className="text-sm">{filter === "all" && !query ? "Check back soon or ask your clinical coordinator." : "Try another filter or clear your search."}</p>
+          <p className="text-sm">{filter === "all" && !query ? "Check back soon or ask your coordinator." : "Try another filter or clear your search."}</p>
           {(filter !== "all" || query) && (
             <button
               type="button"

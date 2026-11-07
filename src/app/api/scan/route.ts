@@ -14,17 +14,42 @@ import type { RegistrationRow } from "@/lib/types";
 export const runtime = "nodejs";
 
 export const POST = handle("scan", async (req: NextRequest) => {
-  const staff = await requirePermission("scan.perform");
+  // Reading the body never waits on the auth round trip.
+  const [staff, rawBody] = await Promise.all([requirePermission("scan.perform"), req.json()]);
   const allowed = await checkRateLimit("scan", staff.profileId, false);
   if (!allowed) return fail(429, "RATE_LIMITED", "Too many scan requests. Please slow down.");
 
-  const body = scanRequestSchema.parse(await req.json());
+  const body = scanRequestSchema.parse(rawBody);
 
-  // Auto mode: use the action the pass was issued for, so staff never need to switch modes.
-  const cred = await describeCredential(body.token);
-  const action = body.action === "auto" ? (cred?.action ?? "time_in") : body.action;
+  // Auto mode needs the pass's own action first; an explicit mode records the scan
+  // and looks up the pass details (for clearer rejections) in parallel.
+  let cred: Awaited<ReturnType<typeof describeCredential>>;
+  let action: "time_in" | "time_out";
+  let result: Awaited<ReturnType<typeof processScan>>;
+  if (body.action === "auto") {
+    cred = await describeCredential(body.token);
+    action = cred?.action ?? "time_in";
+    result = await processScan(body.token, body.eventId, action, staff.profileId, body.idempotencyKey);
+  } else {
+    action = body.action;
+    [cred, result] = await Promise.all([
+      describeCredential(body.token),
+      processScan(body.token, body.eventId, action, staff.profileId, body.idempotencyKey),
+    ]);
+  }
 
-  const result = await processScan(body.token, body.eventId, action, staff.profileId, body.idempotencyKey);
+  // Event window (for OUTSIDE_WINDOW) and the participant's identity load in parallel.
+  const [ev, reg] = await Promise.all([
+    result.code === "OUTSIDE_WINDOW" ? getEventById(body.eventId) : null,
+    result.registrationId
+      ? createAdminClient()
+          .from("registrations")
+          .select("participant_name_encrypted, student_id_encrypted")
+          .eq("id", result.registrationId)
+          .maybeSingle<Pick<RegistrationRow, "participant_name_encrypted" | "student_id_encrypted">>()
+          .then(({ data }) => data)
+      : null,
+  ]);
 
   // Make rejections actionable for the person at the door.
   let msg = message(result.code);
@@ -33,7 +58,6 @@ export const POST = handle("scan", async (req: NextRequest) => {
   } else if (result.code === "WRONG_ACTION" && cred) {
     msg = `This is a ${ACTION_LABEL[cred.action]} pass. Switch the scanner to ${ACTION_LABEL[cred.action]} or Auto.`;
   } else if (result.code === "OUTSIDE_WINDOW") {
-    const ev = await getEventById(body.eventId);
     if (ev) {
       const w = action === "time_in" ? { opens: ev.time_in_opens_at, closes: ev.time_in_closes_at } : timeOutWindow(ev);
       const f = (iso: string) => formatInZone(iso, ev.timezone, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -43,17 +67,10 @@ export const POST = handle("scan", async (req: NextRequest) => {
 
   // Resolve identity when we know the registration (staff already authenticated).
   let identity: { fullName: string; studentId: string } | null = null;
-  if (result.registrationId) {
-    const { data: reg } = await createAdminClient()
-      .from("registrations")
-      .select("participant_name_encrypted, student_id_encrypted")
-      .eq("id", result.registrationId)
-      .maybeSingle<Pick<RegistrationRow, "participant_name_encrypted" | "student_id_encrypted">>();
-    if (reg) {
-      try {
-        identity = decryptIdentity(reg);
-      } catch {}
-    }
+  if (reg) {
+    try {
+      identity = decryptIdentity(reg);
+    } catch {}
   }
 
   return ok({

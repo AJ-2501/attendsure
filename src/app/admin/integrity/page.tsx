@@ -8,11 +8,15 @@ import { ShieldAlert, AlertTriangle } from "lucide-react";
 export const metadata: Metadata = { title: "Integrity Monitor" };
 
 export default async function IntegrityPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requirePagePermission("audit.view");
-  const sp = await searchParams;
-  const { events } = await listAllEvents(1, 50);
+  // Auth, the event list and (with ?event=) that event's flags all load in one parallel batch.
+  const [, sp, { events }, early] = await Promise.all([
+    requirePagePermission("audit.view"),
+    searchParams,
+    listAllEvents(1, 50),
+    searchParams.then((sp) => (sp.event ? getIntegrityFlags(sp.event) : null)),
+  ]);
   const eventId = sp.event ?? events[0]?.id ?? "";
-  const flags = eventId ? await getIntegrityFlags(eventId) : [];
+  const flags = early ?? (eventId ? await getIntegrityFlags(eventId) : []);
 
   return (
     <div className="space-y-6 animate-fade-up">

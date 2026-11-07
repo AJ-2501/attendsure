@@ -116,7 +116,7 @@ function QrDisplay({
             alt={`${label} QR code`}
             width={240}
             height={240}
-            className="w-[min(240px,64vw)] h-auto select-none"
+            className="w-[min(240px,64vw)] h-auto select-none [image-rendering:pixelated]"
           />
         </div>
       ) : (

@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 const MINT = "#5EEAD4";
 const INK = "#0B2E2F";
 const GOLD = "#E3C98C";
+// UA CONP seal gradient, lightened for the dark card (matches .text-gradient-seal).
+const SEAL_GLOW = ["#7fdcab", "#9fc0dc", "#d0b0f2"] as const;
 const CARD_W = 2.2;
 const CARD_H = 3.3;
 const CYCLE = 5; // seconds per scan → verify loop
@@ -16,6 +18,19 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 /** The nursing heart-and-cross mark, drawn at (x, y) with the given size. */
+/** Draw "Attend" in white and "Sure" in the seal gradient, starting at x (left-aligned). */
+function drawWordmark(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  const attendW = ctx.measureText("Attend").width;
+  const sureW = ctx.measureText("Sure").width;
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#fff";
+  ctx.fillText("Attend", x, y);
+  const g = ctx.createLinearGradient(x + attendW, 0, x + attendW + sureW, 0);
+  SEAL_GLOW.forEach((c, i) => g.addColorStop(i / (SEAL_GLOW.length - 1), c));
+  ctx.fillStyle = g;
+  ctx.fillText("Sure", x + attendW, y);
+}
+
 function drawMark(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, color: string) {
   ctx.save();
   ctx.translate(x, y);
@@ -48,10 +63,7 @@ function frontCanvas(modules: { size: number; data: Uint8Array | ArrayLike<numbe
 
   drawMark(ctx, 64, 62, 56, MINT);
   ctx.font = `800 42px ${font}`;
-  ctx.fillStyle = "#fff";
-  ctx.fillText("Attend", 136, 104);
-  ctx.fillStyle = MINT;
-  ctx.fillText("Sure", 136 + ctx.measureText("Attend").width, 104);
+  drawWordmark(ctx, 136, 104);
   ctx.font = `700 20px ${font}`;
   ctx.fillStyle = "rgba(167,201,198,0.9)";
   ctx.letterSpacing = "4px";
@@ -114,12 +126,11 @@ function backCanvas(font: string) {
   ctx.fillRect(0, 0, PX_W, PX_H);
   drawMark(ctx, 190, 290, 260, MINT);
   ctx.font = `800 52px ${font}`;
+  drawWordmark(ctx, 320 - ctx.measureText("AttendSure").width / 2, 680);
   ctx.textAlign = "center";
-  ctx.fillStyle = "#fff";
-  ctx.fillText("AttendSure", 320, 680);
   ctx.font = `600 22px ${font}`;
   ctx.fillStyle = "rgba(167,201,198,0.9)";
-  ctx.fillText("College of Nursing", 320, 722);
+  ctx.fillText("College of Nursing and Pharmacy", 320, 722);
   return c;
 }
 
@@ -243,7 +254,7 @@ export default function PassScanScene({ className }: { className?: string }) {
       );
       card.add(body);
 
-      const qrModules = qrcode.create("AttendSure · College of Nursing", { errorCorrectionLevel: "M" }).modules;
+      const qrModules = qrcode.create("AttendSure · College of Nursing and Pharmacy", { errorCorrectionLevel: "M" }).modules;
       const faceGeo = keep(new THREE.PlaneGeometry(CARD_W, CARD_H));
       const front = new THREE.Mesh(faceGeo, keep(new THREE.MeshBasicMaterial({ map: tex(frontCanvas(qrModules, font)), transparent: true, toneMapped: false })));
       front.position.z = 0.042;
@@ -309,8 +320,13 @@ export default function PassScanScene({ className }: { className?: string }) {
         for (let i = 0; i < SPARKS; i++) {
           const a = Math.random() * Math.PI * 2;
           const sp = 0.6 + Math.random() * 1.2;
-          sparkPos.set([badge.position.x, badge.position.y, 0.15], i * 3);
-          sparkVel.set([Math.cos(a) * sp, Math.sin(a) * sp, (Math.random() - 0.3) * 0.8], i * 3);
+          const k = i * 3; // write in place: no per-burst array allocations
+          sparkPos[k] = badge.position.x;
+          sparkPos[k + 1] = badge.position.y;
+          sparkPos[k + 2] = 0.15;
+          sparkVel[k] = Math.cos(a) * sp;
+          sparkVel[k + 1] = Math.sin(a) * sp;
+          sparkVel[k + 2] = (Math.random() - 0.3) * 0.8;
         }
       }
 
@@ -450,14 +466,20 @@ export default function PassScanScene({ className }: { className?: string }) {
       }
       requestAnimationFrame(() => { canvas.style.opacity = "1"; });
 
+      // Only animate while the scene is on screen and the tab is visible.
+      let onScreen = false;
+      const syncLoop = () => renderer.setAnimationLoop(onScreen && !document.hidden && !reduceMotion ? frame : null);
       const io = new IntersectionObserver(([entry]) => {
-        renderer.setAnimationLoop(entry.isIntersecting && !reduceMotion ? frame : null);
+        onScreen = entry.isIntersecting;
+        syncLoop();
       });
       io.observe(host);
+      document.addEventListener("visibilitychange", syncLoop);
 
       cleanup = () => {
         renderer.setAnimationLoop(null);
         io.disconnect();
+        document.removeEventListener("visibilitychange", syncLoop);
         ro.disconnect();
         if (pRaf !== null) cancelAnimationFrame(pRaf);
         window.removeEventListener("pointermove", onPointer);

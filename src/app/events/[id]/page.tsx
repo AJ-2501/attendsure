@@ -42,13 +42,14 @@ function Window({ icon, label, opens, closes, tz, active, last }: { icon: React.
 
 export default async function EventDetailPage({ params }: Props) {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
+  // Count runs alongside the event lookup (it is harmless for an unknown id).
+  const [event, counts] = await Promise.all([getPublishedEvent(id), countRegistrations([id])]);
   if (!event) notFound();
 
   const now = new Date();
   const t = now.getTime();
   const status = effectiveStatus(event, now);
-  const registered = (await countRegistrations([event.id]))[event.id] ?? 0;
+  const registered = counts[event.id] ?? 0;
   const full = registered >= event.capacity;
   const phase = registrationPhase(event, now);
   const canRegister = phase === "open" && status !== "completed" && !full;

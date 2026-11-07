@@ -266,6 +266,8 @@ export function ClaimForm({ defaultOpen = false }: { defaultOpen?: boolean }) {
               placeholder="SA-XXXX-XXXX"
               autoCapitalize="characters"
               autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="done"
               maxLength={12}
               aria-invalid={f.referenceCode ? true : undefined}
               aria-describedby={f.referenceCode ? "claim-ref-msg" : undefined}
@@ -322,7 +324,7 @@ export function ProfileForm({ initial, open }: { initial: ProfileValues | null; 
     "aria-invalid": f[k] ? true : undefined,
     "aria-describedby": f[k] || hasHint ? `p-${k}-msg` : undefined,
   });
-  const v = initial ?? { fullName: "", studentId: "", section: "", yearLevel: "", department: "College of Nursing" };
+  const v = initial ?? { fullName: "", studentId: "", section: "", yearLevel: "", department: "College of Nursing and Pharmacy" };
   return (
     <details id="my-details" className="card overflow-hidden group scroll-mt-4" open={open}>
       <summary className="cursor-pointer min-h-14 px-4 font-semibold text-ink flex items-center gap-2 list-none">

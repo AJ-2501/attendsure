@@ -3,11 +3,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LayoutDashboard, ScanLine, Users, Calendar, BarChart2, ClipboardList, LogOut, Menu, X, ShieldAlert, Home } from "lucide-react";
+import { LayoutDashboard, ScanLine, Users, Calendar, BarChart2, ClipboardList, LogOut, Menu, X, ShieldAlert, Home, KeyRound } from "lucide-react";
 import { clsx } from "clsx";
 import { Logo } from "@/components/Brand";
+import { can, type Permission } from "@/lib/auth/permissions";
 
-const LINKS = [
+const LINKS: { href: string; icon: typeof Home; label: string; exact?: boolean; permission?: Permission }[] = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard", exact: true },
   { href: "/admin/scanner", icon: ScanLine, label: "Scanner" },
   { href: "/admin/participants", icon: Users, label: "Attendance" },
@@ -15,6 +16,7 @@ const LINKS = [
   { href: "/admin/reports", icon: BarChart2, label: "Reports" },
   { href: "/admin/audit", icon: ClipboardList, label: "Audit Log" },
   { href: "/admin/integrity", icon: ShieldAlert, label: "Integrity" },
+  { href: "/admin/decrypt", icon: KeyRound, label: "Decrypt", permission: "records.decrypt" },
 ];
 
 interface Props {
@@ -64,7 +66,7 @@ export default function AdminShell({ displayName, email, role, children }: Props
 
   const navLinks = (
     <nav className="sidebar flex-1 overflow-y-auto" aria-label="Admin">
-      {LINKS.map(({ href, icon: Icon, label, exact }) => (
+      {LINKS.filter((l) => !l.permission || can(role, l.permission)).map(({ href, icon: Icon, label, exact }) => (
         <Link
           key={href}
           href={href}

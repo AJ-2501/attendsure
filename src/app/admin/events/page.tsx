@@ -10,9 +10,7 @@ import DeleteEventButton from "./DeleteEventButton";
 export const metadata: Metadata = { title: "Events" };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
-  await requirePagePermission("events.manage");
-  const { deleted } = await searchParams;
-  const { events, total } = await listAllEvents(1, 100);
+  const [, { deleted }, { events, total }] = await Promise.all([requirePagePermission("events.manage"), searchParams, listAllEvents(1, 100)]);
   const counts = await countRegistrations(events.map((e) => e.id));
   const now = new Date();
 

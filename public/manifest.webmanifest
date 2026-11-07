@@ -1,7 +1,7 @@
 {
   "name": "AttendSure",
   "short_name": "AttendSure",
-  "description": "College of Nursing attendance with QR check-in",
+  "description": "College of Nursing and Pharmacy attendance with QR check-in",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B2E2F",
@@ -16,7 +16,13 @@
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [

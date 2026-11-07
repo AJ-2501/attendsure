@@ -2,7 +2,16 @@
 
 /* ── Design Tokens ────────────────────────────────────────────── */
 @theme {
-  /* AttendSure · College of Nursing — clinical teal */
+  /* UA CONP seal: green → slate → purple. "ink" tones pass 4.5:1 on white (and with
+     white text on top); "glow" tones pass 7:1 on the ink background. */
+  --color-seal-green:  #2b734f;
+  --color-seal-slate:  #4f6a85;
+  --color-seal-purple: #7d55aa;
+  --color-seal-green-glow:  #7fdcab;
+  --color-seal-slate-glow:  #9fc0dc;
+  --color-seal-purple-glow: #d0b0f2;
+
+  /* AttendSure · College of Nursing and Pharmacy — clinical teal */
   --color-brand-50:  oklch(0.98 0.014 180);
   --color-brand-100: oklch(0.95 0.030 180);
   --color-brand-200: oklch(0.90 0.060 182);
@@ -65,10 +74,35 @@
     transition-duration: 0s !important;
   }
 
-  /* ── Scrollbar ────────────────────────────────────────────────── */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  /* ── Scrollbar ────────────────────────────────────────────────────
+     12px hit area with a slim 6px thumb at rest (transparent border + padding-box).
+     Hovering a scrollable area reveals a shaded gutter; hovering the thumb itself
+     thickens it, darkens it and gives it depth; dragging uses the brand colour. */
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; border-radius: 9999px; transition: background-color 0.15s; }
+  ::-webkit-scrollbar-thumb {
+    background-color: #c3d3d1;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  :hover::-webkit-scrollbar-track {
+    background-color: rgb(11 46 47 / 0.04);
+    box-shadow: inset 0 0 4px rgb(11 46 47 / 0.12);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #7f9e9b;
+    border-width: 2px;
+    box-shadow: inset 0 1px 2px rgb(255 255 255 / 0.35), inset 0 -1px 3px rgb(11 46 47 / 0.35), 0 1px 4px rgb(11 46 47 / 0.3);
+  }
+  ::-webkit-scrollbar-thumb:active { background-image: linear-gradient(180deg, var(--color-seal-green), var(--color-seal-slate), var(--color-seal-purple)); }
+
+  /* Firefox only (Chromium ignores ::-webkit-scrollbar once scrollbar-color is set). */
+  @supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: #c3d3d1 transparent; }
+    *:hover { scrollbar-color: #7f9e9b rgb(11 46 47 / 0.06); }
+  }
 
   /* ── Focus ring ───────────────────────────────────────────────── */
   :focus-visible {
@@ -225,12 +259,16 @@
   .btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   /* Size modifiers */
+  /* Compact buttons stay a full 44px touch target on phones; compact only from sm up (pointer devices). */
   .btn-sm {
-    min-height: 2.25rem !important;
+    min-height: 2.75rem !important;
     padding: 0.375rem 0.75rem !important;
     font-size: 0.75rem !important;
     line-height: 1rem !important;
     border-radius: 0.375rem !important;
+  }
+  @media (min-width: 40rem) {
+    .btn-sm { min-height: 2.25rem !important; }
   }
   .btn-lg {
     min-height: 3.25rem !important;
@@ -402,7 +440,7 @@
     inset-inline: 0;
     bottom: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgb(94 234 212 / 0.35), transparent);
+    background: linear-gradient(90deg, transparent, rgb(127 220 171 / 0.5), rgb(159 192 220 / 0.5), rgb(208 176 242 / 0.5), transparent);
   }
   /* Photo hero: no grid squares over the picture */
   .hero-aurora.hero-photo::before { display: none; }
@@ -420,11 +458,32 @@
         radial-gradient(50% 60% at 75% 45%, rgb(45 212 191 / 0.14), transparent 70%);
     }
   }
-  .text-gradient-mint {
-    background: linear-gradient(100deg, #5EEAD4 0%, #99f6e4 45%, #7dd3fc 100%);
+  /* Seal gradient: the green → slate → purple of the UA CONP seal's inner disc.
+     `-seal` is lightened for dark backgrounds (≥ 7:1 on ink); `-seal-ink` uses the
+     seal's own tones, deepened slightly to stay ≥ 4.5:1 on white. */
+  .text-gradient-seal,
+  .text-gradient-seal-ink {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    -webkit-box-decoration-break: clone; /* each wrapped line gets the full gradient */
+    box-decoration-break: clone;
+  }
+  .text-gradient-seal { background-image: linear-gradient(100deg, var(--color-seal-green-glow), var(--color-seal-slate-glow), var(--color-seal-purple-glow)); }
+  .text-gradient-seal-ink { background-image: linear-gradient(100deg, var(--color-seal-green), var(--color-seal-slate), var(--color-seal-purple)); }
+  /* Solid fill for white text/icons (≥ 5.6:1 at every stop). */
+  .bg-gradient-seal { background-image: linear-gradient(135deg, var(--color-seal-green), var(--color-seal-slate) 55%, var(--color-seal-purple)); }
+  /* 1px gradient hairline along the bottom edge. */
+  .seal-hairline { border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, transparent, var(--color-seal-green) 20%, var(--color-seal-slate) 50%, var(--color-seal-purple) 80%, transparent) 1; }
+  /* Gradient-outlined pill for dark backgrounds (two-layer background trick keeps rounded corners). */
+  .seal-pill {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(rgb(11 46 47 / 0.72), rgb(11 46 47 / 0.72)) padding-box,
+      linear-gradient(100deg, var(--color-seal-green-glow), var(--color-seal-slate-glow), var(--color-seal-purple-glow)) border-box;
+  }
+  @media (forced-colors: active) {
+    .text-gradient-seal, .text-gradient-seal-ink { background: none; color: CanvasText; }
   }
   .glass-chip {
     display: inline-flex;
@@ -441,7 +500,7 @@
   }
   @keyframes float-soft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
   .float-soft { animation: float-soft 6s ease-in-out infinite; }
-  @keyframes live-dot { 0% { box-shadow: 0 0 0 0 rgb(94 234 212 / 0.55); } 100% { box-shadow: 0 0 0 8px rgb(94 234 212 / 0); } }
+  @keyframes live-dot { 0% { box-shadow: 0 0 0 0 rgb(127 220 171 / 0.6); } 100% { box-shadow: 0 0 0 8px rgb(208 176 242 / 0); } }
   .live-dot { animation: live-dot 1.8s ease-out infinite; }
 
   /* ── Sign-in surface ──────────────────────────────────────────── */
@@ -496,6 +555,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    html { scroll-behavior: auto; }
   }
 
   /* ── Mobile bottom tab bar ─────────────────────────────────────── */
@@ -513,8 +573,9 @@
   .tab-link.active { color: var(--color-brand-600); font-weight: 700; }
   .tab-scan {
     width: 3.25rem; height: 3.25rem; margin-top: -1.75rem; border-radius: 1.125rem;
-    background: var(--color-brand-600); color: #fff; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 8px 20px oklch(0.51 0.086 186 / 0.4);
+    background-image: linear-gradient(135deg, var(--color-seal-green), var(--color-seal-slate) 55%, var(--color-seal-purple));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px -4px rgb(125 85 170 / 0.45), 0 4px 10px -2px rgb(43 115 79 / 0.35);
   }
   .pb-tabbar { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 
@@ -553,7 +614,11 @@
   }
   .sidebar-link:hover { background-color: var(--color-brand-50); color: var(--color-brand-700); }
   .sidebar-link:active { transform: scale(0.98); transition-duration: 0s !important; }
-  .sidebar-link.active { background-color: var(--color-brand-600); color: #ffffff; }
+  .sidebar-link.active { position: relative; background-color: var(--color-brand-600); color: #ffffff; }
+  .sidebar-link.active::before {
+    content: ""; position: absolute; left: -0.5rem; top: 0.375rem; bottom: 0.375rem; width: 4px; border-radius: 0 4px 4px 0;
+    background-image: linear-gradient(180deg, var(--color-seal-green), var(--color-seal-slate), var(--color-seal-purple));
+  }
   .sidebar-link.active:hover { background-color: var(--color-brand-700); color: #ffffff; }
 
   .tab-link:active { transform: scale(0.95); transition-duration: 0s !important; }

@@ -146,26 +146,24 @@ export async function getAuditLog(eventId: string, page = 1, pageSize = 25) {
   return { rows: data ?? [], total: count ?? 0 };
 }
 
+/**
+ * Personal data leaves the system still encrypted (3DES envelopes); admins with
+ * `records.decrypt` can reveal it on /admin/decrypt, where each access is audited.
+ */
 export async function exportAttendanceCsv(eventId: string): Promise<string> {
   const db = createAdminClient();
   const { data } = await db
     .from("registrations")
-    .select("id, reference_code, section, year_level, department, registration_status, registered_at, attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status)")
+    .select("id, reference_code, participant_name_encrypted, student_id_encrypted, section, year_level, department, registration_status, registered_at, attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status)")
     .eq("event_id", eventId)
     .order("registered_at");
   if (!data) return "";
-  const { tdesDecrypt } = await import("@/lib/crypto/tdes");
-  const { FIELD } = await import("@/lib/crypto/tdes");
   const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
-  const header = "reference_code,name,section,year_level,department,registration_status,time_in_at,time_in_ref,time_out_at,time_out_ref,attendance_status,registered_at";
-  const rows = (data as (typeof data[0] & { participant_name_encrypted: string; attendance_records: typeof data[0]["attendance_records"] })[]).map((r) => {
-    let name = "(encrypted)";
-    try {
-      name = tdesDecrypt((r as { participant_name_encrypted: string }).participant_name_encrypted, FIELD.name);
-    } catch {}
+  const header = "reference_code,name_encrypted,student_id_encrypted,section,year_level,department,registration_status,time_in_at,time_in_ref,time_out_at,time_out_ref,attendance_status,registered_at";
+  const rows = data.map((r) => {
     const att = Array.isArray(r.attendance_records) ? r.attendance_records[0] : r.attendance_records;
     return [
-      r.reference_code, name, r.section, r.year_level ?? "", r.department ?? "",
+      r.reference_code, r.participant_name_encrypted, r.student_id_encrypted, r.section, r.year_level ?? "", r.department ?? "",
       r.registration_status, att?.time_in_at ?? "", att?.time_in_ref ?? "",
       att?.time_out_at ?? "", att?.time_out_ref ?? "", att?.status ?? "", r.registered_at,
     ].map(String).map(escape).join(",");

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
 import { BadgeCheck, LogIn, QrCode, ScanLine, UserPlus } from "lucide-react";
-import { LogoMark } from "@/components/Brand";
+import { Seal } from "@/components/Brand";
 
 const PassScanScene = dynamic(() => import("@/components/PassScanScene"), {
   ssr: false,
@@ -30,20 +30,18 @@ const STEPS = [
 export function AuthVisual() {
   const role = roleOf(usePathname());
   return (
-    <div className="hero-aurora relative overflow-hidden flex flex-col items-center justify-center px-6 sm:px-10 lg:px-12 pt-[calc(2.25rem+env(safe-area-inset-top))] pb-14 lg:py-14 lg:w-1/2 lg:flex-1 lg:min-h-dvh">
+    <div className="hero-aurora relative overflow-hidden flex flex-col items-center justify-center px-6 sm:px-10 lg:px-12 pt-[calc(1.5rem+env(safe-area-inset-top))] sm:pt-[calc(2.25rem+env(safe-area-inset-top))] pb-11 sm:pb-14 lg:py-14 lg:w-1/2 lg:flex-1 lg:min-h-dvh">
       <Link href="/" className="inline-flex items-center gap-3 rounded-2xl focus-visible:outline-mint" aria-label="AttendSure home">
-        <span className="w-11 h-11 lg:w-12 lg:h-12 rounded-[14px] bg-brand-600 flex items-center justify-center shadow-[0_10px_30px_-8px_rgb(45_212_191/0.6)] ring-1 ring-white/10">
-          <LogoMark className="w-6 h-6 lg:w-7 lg:h-7 text-white" strokeWidth={2} />
-        </span>
+        <Seal className="w-14 h-14 lg:w-16 lg:h-16 ring-2 ring-white/15" priority />
         <span className="text-[28px] lg:text-[34px] font-extrabold tracking-tight text-white">
-          Attend<span className="text-gradient-mint">Sure</span>
+          Attend<span className="text-gradient-seal">Sure</span>
         </span>
       </Link>
       <p key={role} className="animate-fade-up mt-2 text-[15px] lg:text-lg text-[#b5d3d0] text-center">
         {TAGLINE[role]}
       </p>
 
-      <div className="relative w-full max-w-[540px] h-[230px] sm:h-[300px] lg:h-[460px] mt-2 lg:mt-4" aria-hidden="true">
+      <div className="relative w-full max-w-[540px] h-[170px] min-[400px]:h-[200px] sm:h-[300px] lg:h-[460px] mt-2 lg:mt-4" aria-hidden="true">
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[62%] aspect-square rounded-full bg-[radial-gradient(circle,rgb(94_234_212/0.16),rgb(227_201_140/0.06)_45%,transparent_70%)] blur-2xl" />
         <PassScanScene className="absolute inset-0" />
       </div>

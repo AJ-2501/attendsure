@@ -1,10 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { EventRow, PublicEvent } from "@/lib/types";
 export type { PublicEvent };
 import type { EventParsed } from "@/lib/schemas";
 
-export async function listPublishedEvents(): Promise<EventRow[]> {
+/** Deduplicated per request (React cache): repeated calls in one render share one query. */
+export const listPublishedEvents = cache(async (): Promise<EventRow[]> => {
   const db = createAdminClient();
   const { data } = await db
     .from("events")
@@ -13,7 +15,7 @@ export async function listPublishedEvents(): Promise<EventRow[]> {
     .order("starts_at", { ascending: true })
     .returns<EventRow[]>();
   return data ?? [];
-}
+});
 
 export async function listAllEvents(page = 1, pageSize = 25): Promise<{ events: EventRow[]; total: number }> {
   const db = createAdminClient();
@@ -27,17 +29,17 @@ export async function listAllEvents(page = 1, pageSize = 25): Promise<{ events: 
   return { events: data ?? [], total: count ?? 0 };
 }
 
-export async function getEventById(id: string): Promise<EventRow | null> {
+export const getEventById = cache(async (id: string): Promise<EventRow | null> => {
   const db = createAdminClient();
   const { data } = await db.from("events").select("*").eq("id", id).maybeSingle<EventRow>();
   return data;
-}
+});
 
-export async function getEventBySlug(slug: string): Promise<EventRow | null> {
+export const getEventBySlug = cache(async (slug: string): Promise<EventRow | null> => {
   const db = createAdminClient();
   const { data } = await db.from("events").select("*").eq("slug", slug).maybeSingle<EventRow>();
   return data;
-}
+});
 
 export async function createEvent(parsed: EventParsed, profileId: string): Promise<EventRow> {
   const db = createAdminClient();
@@ -162,12 +164,12 @@ export function toPublicEvent(e: EventRow): PublicEvent {
 }
 
 /** A single published event for the public detail page; drafts and cancelled events stay hidden. */
-export async function getPublishedEvent(id: string): Promise<EventRow | null> {
+export const getPublishedEvent = cache(async (id: string): Promise<EventRow | null> => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const db = createAdminClient();
   const { data } = await db.from("events").select("*").eq("id", id).eq("status", "published").maybeSingle<EventRow>();
   return data;
-}
+});
 
 /** Active registration count per event (single batched query to avoid N parallel network requests). */
 export async function countRegistrations(eventIds: string[]): Promise<Record<string, number>> {
@@ -198,6 +200,23 @@ export async function countRegistrations(eventIds: string[]): Promise<Record<str
       if (r.event_id) counts[r.event_id] = (counts[r.event_id] || 0) + 1;
     }
   }
+  return counts;
+}
+
+/**
+ * Active registration count per published event ending after `endsAfter`, filtered by the
+ * event in the database (inner join), so it can run in parallel with listPublishedEvents().
+ */
+export async function countPublishedRegistrations(endsAfter: string): Promise<Record<string, number>> {
+  const { data, error } = await createAdminClient()
+    .from("registrations")
+    .select("event_id, events!inner(status, ends_at)")
+    .eq("registration_status", "registered")
+    .eq("events.status", "published")
+    .gte("events.ends_at", endsAfter)
+    .returns<{ event_id: string }[]>();
+  const counts: Record<string, number> = {};
+  if (!error && data) for (const r of data) counts[r.event_id] = (counts[r.event_id] ?? 0) + 1;
   return counts;
 }
 

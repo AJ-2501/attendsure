@@ -8,8 +8,7 @@ export const metadata: Metadata = { title: "QR Scanner" };
 export const dynamic = "force-dynamic";
 
 export default async function ScannerPage() {
-  await requirePagePermission("scan.perform");
-  const { events } = await listAllEvents(1, 100);
+  const [, { events }] = await Promise.all([requirePagePermission("scan.perform"), listAllEvents(1, 100)]);
   const now = new Date().getTime();
   const within = (a: string, b: string) => now >= Date.parse(a) && now < Date.parse(b);
 

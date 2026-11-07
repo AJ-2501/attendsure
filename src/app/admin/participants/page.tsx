@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth/session";
+import { can } from "@/lib/auth/permissions";
 import { listAllEvents } from "@/lib/services/events";
 import { listParticipants } from "@/lib/services/events";
 import { decryptIdentity } from "@/lib/services/registrations";
 import { formatInZone } from "@/lib/time";
 import { clsx } from "clsx";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, KeyRound } from "lucide-react";
 import type { RegistrationRow } from "@/lib/types";
 import ParticipantFilters from "./ParticipantFilters";
 
@@ -17,7 +18,6 @@ export default async function ParticipantsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requirePagePermission("participants.view");
   const sp = await searchParams;
   const eventId = sp.event ?? "";
   const q = sp.q ?? "";
@@ -25,15 +25,9 @@ export default async function ParticipantsPage({
   const status = sp.status ?? "";
   const page = Math.max(1, Number(sp.page ?? 1));
 
-  const { events } = await listAllEvents(1, 100);
-  const activeEventId = eventId || events[0]?.id || "";
-  const activeEvent = events.find((e) => e.id === activeEventId);
-
-  let rows: import("@/lib/types").RegistrationRow[] = [];
-  let total = 0;
-  if (activeEventId) {
-    const result = await listParticipants({
-      eventId: activeEventId,
+  const loadRows = (id: string) =>
+    listParticipants({
+      eventId: id,
       q: q || undefined,
       section: section || undefined,
       status: status || undefined,
@@ -42,6 +36,19 @@ export default async function ParticipantsPage({
       sort: "registered_at",
       dir: "desc",
     });
+  // Auth, the event list and (with ?event=) that event's rows all load in one parallel batch.
+  const [staff, { events }, early] = await Promise.all([
+    requirePagePermission("participants.view"),
+    listAllEvents(1, 100),
+    eventId ? loadRows(eventId) : null,
+  ]);
+  const activeEventId = eventId || events[0]?.id || "";
+  const activeEvent = events.find((e) => e.id === activeEventId);
+
+  let rows: import("@/lib/types").RegistrationRow[] = [];
+  let total = 0;
+  const result = early ?? (activeEventId ? await loadRows(activeEventId) : null);
+  if (result) {
     rows = result.rows;
     total = result.total;
   }
@@ -61,13 +68,20 @@ export default async function ParticipantsPage({
           <p className="text-slate-500 text-sm">{total.toLocaleString()} registrations</p>
         </div>
         {activeEventId && (
-          <a
-            href={`/api/reports/export?eventId=${activeEventId}`}
-            className="btn-secondary btn-sm gap-2"
-            download
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/reports/export?eventId=${activeEventId}`}
+              className="btn-secondary btn-sm gap-2"
+              download
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </a>
+            {can(staff.role, "records.decrypt") && (
+              <Link href="/admin/decrypt" prefetch={true} className="btn-ghost btn-sm gap-2">
+                <KeyRound className="w-4 h-4" /> Decrypt export
+              </Link>
+            )}
+          </div>
         )}
       </div>
 

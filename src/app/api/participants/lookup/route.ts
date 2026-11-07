@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/auth/session";
 import { lookupSchema } from "@/lib/schemas";
 import { findRegistration, decryptIdentity } from "@/lib/services/registrations";
 import type { NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -24,11 +23,8 @@ export const GET = handle("participants-lookup", async (req: NextRequest) => {
   let identity: { fullName: string; studentId: string } | null = null;
   try { identity = decryptIdentity(reg); } catch {}
 
-  const { data: att } = await createAdminClient()
-    .from("attendance_records")
-    .select("time_in_at, time_out_at")
-    .eq("registration_id", reg.id)
-    .maybeSingle<{ time_in_at: string | null; time_out_at: string | null }>();
+  const embedded = reg.attendance_records as typeof reg.attendance_records | (typeof reg.attendance_records)[];
+  const att = Array.isArray(embedded) ? embedded[0] : embedded;
 
   return ok({
     attendance: { timeInAt: att?.time_in_at ?? null, timeOutAt: att?.time_out_at ?? null },

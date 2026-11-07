@@ -13,10 +13,9 @@ export const dynamic = "force-dynamic";
 
 export default async function StudentSignupPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
   const { event: eventId } = await searchParams;
-  const session = await getSessionProfile();
+  const [session, ev] = await Promise.all([getSessionProfile(), eventId ? getPublishedEvent(eventId) : null]);
   if (session && !isStaffRole(session.role)) redirect(eventId ? `/me?register=${encodeURIComponent(eventId)}` : "/me");
 
-  const ev = eventId ? await getPublishedEvent(eventId) : null;
   const event = ev && registrationPhase(ev) === "open" ? { id: ev.id, name: ev.name } : null;
   const loginHref = `/student/login${event ? `?next=${encodeURIComponent(`/me?register=${event.id}`)}` : ""}`;
 
@@ -25,7 +24,7 @@ export default async function StudentSignupPage({ searchParams }: { searchParams
       <SignupForm event={event} />
       <p className="text-[13px] text-center text-[#4b6362]">
         Already have an account?{" "}
-        <Link href={loginHref} className="font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2">Sign in</Link>
+        <Link href={loginHref} className="inline-block py-3 -my-3 px-1 -mx-1 font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2">Sign in</Link>
       </p>
     </AuthShell>
   );

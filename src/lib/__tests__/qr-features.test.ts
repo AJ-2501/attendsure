@@ -27,7 +27,7 @@ describe("Event Schema Validations", () => {
     name: "Nursing Clinical Orientation",
     description: "Orientation for 2nd year nursing students",
     venue: "Main Amphitheater",
-    organizer: "College of Nursing",
+    organizer: "College of Nursing and Pharmacy",
     timezone: "Asia/Manila",
     startsAt: "2026-11-01T08:00:00Z",
     endsAt: "2026-11-01T17:00:00Z",

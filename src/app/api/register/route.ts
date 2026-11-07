@@ -4,19 +4,28 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { registerParticipant } from "@/lib/services/registrations";
 import { createStudentUser, deleteStudentUser, getProfileDigest, linkRegistration, getStudentPrefill } from "@/lib/services/students";
 import { getSessionProfile } from "@/lib/auth/session";
-import { accountSchema, normalizeStudentId } from "@/lib/schemas";
+import { accountSchema, normalizeStudentId, withFixedRules } from "@/lib/schemas";
 import { studentIdDigest } from "@/lib/crypto/tokens";
 import { listPublishedEvents } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase } from "@/lib/time";
 
 export const runtime = "nodejs";
 
+/** The form gets the same fixed rules the server enforces. */
+const fixed = (e: { required_fields: { department: boolean; year_level: boolean } }) => {
+  const r = withFixedRules(e.required_fields);
+  return { student_id_pattern: r.studentIdPattern, required_fields: r.requiredFields };
+};
+
 export const GET = handle("register", async () => {
   const now = new Date();
+  // Event list and session load in parallel; only the student prefill depends on the session.
+  const [published, session] = await Promise.all([listPublishedEvents(), getSessionProfile()]);
   // Only events that are accepting registrations right now (same rule the database enforces).
-  const events = (await listPublishedEvents()).filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
+  const events = published.filter((e) => registrationPhase(e, now) === "open" && effectiveStatus(e, now) !== "completed");
   // Only return fields needed for the form (no sensitive internal state).
   const safe = events.map((e) => ({
+    ...fixed(e),
     id: e.id,
     name: e.name,
     venue: e.venue,
@@ -26,12 +35,9 @@ export const GET = handle("register", async () => {
     registration_closes_at: e.registration_closes_at,
     status: e.status,
     capacity: e.capacity,
-    student_id_pattern: e.student_id_pattern,
     student_id_hint: e.student_id_hint,
-    required_fields: e.required_fields,
     timezone: e.timezone,
   }));
-  const session = await getSessionProfile();
   const me =
     session?.role === "student"
       ? { email: session.email, prefill: await getStudentPrefill(session.profileId) }
@@ -56,11 +62,11 @@ const REGISTER_ERRORS: Record<string, [number, string]> = {
  */
 export const POST = handle("register", async (req: NextRequest) => {
   const ip = clientIp(req);
-  const allowed = await checkRateLimit("register", ip, true);
+  // Rate limit, body and session in parallel; nothing is written before the limit check passes.
+  const [allowed, rawBody, session] = await Promise.all([checkRateLimit("register", ip, true), req.json(), getSessionProfile()]);
   if (!allowed) return fail(429, "RATE_LIMITED", "Too many requests. Please wait before registering again.");
 
-  const body = (await req.json()) as Record<string, unknown>;
-  const session = await getSessionProfile();
+  const body = rawBody as Record<string, unknown>;
   const student = session && session.role === "student" ? session : null;
 
   // Validate the account part first so the student sees every problem at once.

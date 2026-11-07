@@ -20,9 +20,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ParticipantPage({ params, searchParams }: Props) {
-  const { token } = await params;
-  const { from } = await searchParams;
-  const view = await getParticipantByAccessToken(token);
+  const [{ token }, { from }] = await Promise.all([params, searchParams]);
+  // Session lookup runs alongside the pass lookup instead of after it.
+  const [view, session] = await Promise.all([getParticipantByAccessToken(token), getSessionProfile()]);
   if (!view) notFound();
 
   // Re-derive the time-in token for display if not yet used.
@@ -68,7 +68,6 @@ export default async function ParticipantPage({ params, searchParams }: Props) {
   };
 
   // Signed-in students always get a way back to their dashboard.
-  const session = await getSessionProfile();
   const back = from === "me" || session?.role === "student" ? { href: "/me", label: "My dashboard" } : { href: "/#events", label: "Events" };
   return <ParticipantClient data={data} accessToken={token} back={back} />;
 }
