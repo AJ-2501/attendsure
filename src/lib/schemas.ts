@@ -18,11 +18,20 @@ export function normalizeSection(input: string): string {
   return input.normalize("NFKC").replace(/\s+/g, " ").trim().toUpperCase();
 }
 
+/** Fixed for every event: a 10-digit UA student ID and a school (@ua.edu.ph) email. */
+export const STUDENT_ID_PATTERN = "^[0-9]{10}$";
+
 export const requiredFieldsSchema = z.object({
   department: z.boolean().default(true),
   year_level: z.boolean().default(true),
-  email: z.boolean().default(false),
+  // Always required: older events stored false, so it is forced on rather than read.
+  email: z.boolean().optional().transform(() => true),
 });
+
+/** Registration rules with the fixed ID pattern and school-email requirement applied. */
+export function withFixedRules<T extends { department: boolean; year_level: boolean }>(requiredFields: T) {
+  return { studentIdPattern: STUDENT_ID_PATTERN, requiredFields: { department: requiredFields.department, year_level: requiredFields.year_level, email: true } };
+}
 export type RequiredFields = z.infer<typeof requiredFieldsSchema>;
 
 export const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"] as const;
@@ -163,6 +172,17 @@ export const correctionSchema = z
     message: "Time out cannot be earlier than time in",
   });
 
+export const ENVELOPE_PATTERN = /^v1\.[\w-]+\.[\w-]+\.[\w-]+$/;
+export const DECRYPT_BATCH_MAX = 500;
+
+export const decryptSchema = z.object({
+  values: z
+    .array(z.string().trim().max(4096).regex(ENVELOPE_PATTERN, "Not an AttendSure encrypted value"))
+    .min(1, "Add at least one encrypted value")
+    .max(DECRYPT_BATCH_MAX, `Decrypt at most ${DECRYPT_BATCH_MAX} values at a time`),
+  reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
+});
+
 export const reasonSchema = z.object({
   reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
 });
@@ -209,18 +229,8 @@ export const eventSchema = z
     allowTimeIn: z.boolean().default(true),
     allowTimeOut: z.boolean().default(true),
     requireTimeOut: z.boolean().default(true),
-    studentIdPattern: z
-      .string()
-      .min(2, "Enter a regular expression pattern")
-      .max(200, "Pattern is too long")
-      .refine((p) => {
-        try {
-          new RegExp(p);
-          return true;
-        } catch {
-          return false;
-        }
-      }, "Invalid regular expression"),
+    // No longer editable: every event uses the standard 10-digit student ID.
+    studentIdPattern: z.string().optional().transform(() => STUDENT_ID_PATTERN),
     studentIdHint: z.string().max(120, "Hint is too long (max 120 characters)").default(""),
     requiredFields: requiredFieldsSchema,
     status: z.enum(["draft", "published", "cancelled"]),

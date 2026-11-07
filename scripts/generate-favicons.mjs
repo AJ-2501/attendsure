@@ -1,110 +1,104 @@
-import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
+/**
+ * Builds every app icon from the official UA College of Nursing and Pharmacy seal.
+ * Source: assets/brand/ua-conp-seal.png (transparent PNG). Run: node scripts/generate-favicons.mjs
+ *
+ * - Tab sizes (16–48px) use only the inner caduceus disc: the seal's ring text is
+ *   illegible that small, and the simpler mark stays recognisable.
+ * - apple-icon / maskable icons sit on a white background: iOS paints transparency
+ *   black, and Android masks crop to a circle/squircle (80% safe zone).
+ */
+import sharp from "sharp";
+import fs from "node:fs";
+import path from "node:path";
 
-// Generate SVG string
-function getSvg(size = 512) {
-  // Proportions:
-  // Badge size: size x size
-  // Icon size: size * 0.58
-  // Corner radius: size * 0.28
-  const radius = Math.round(size * 0.28);
-  const iconSize = size * 0.58;
-  const offset = (size - iconSize) / 2;
-  const strokeWidth = 2.25;
+const SRC = path.resolve("assets/brand/ua-conp-seal.png");
+const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
+const CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-  <defs>
-    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#148b83"/>
-      <stop offset="100%" stop-color="#0b5f58"/>
-    </linearGradient>
-  </defs>
-  <rect width="${size}" height="${size}" rx="${radius}" fill="url(#brandGradient)"/>
-  <g transform="translate(${offset}, ${offset}) scale(${iconSize / 24})" fill="none" stroke="#ffffff" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M19.5 12.6 12 20l-7.5-7.4A4.6 4.6 0 0 1 12 6.6a4.6 4.6 0 0 1 7.5 6Z" />
-    <path d="M12 10v5M9.5 12.5h5" />
-  </g>
-</svg>`;
+// Multi-resolution ICO with embedded PNGs (supported by all current browsers).
+function createIco(images) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(images.length, 4);
+  let offset = 6 + images.length * 16;
+  const entries = images.map(({ size, buffer }) => {
+    const e = Buffer.alloc(16);
+    e.writeUInt8(size >= 256 ? 0 : size, 0);
+    e.writeUInt8(size >= 256 ? 0 : size, 1);
+    e.writeUInt16LE(1, 4);
+    e.writeUInt16LE(32, 6);
+    e.writeUInt32LE(buffer.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += buffer.length;
+    return e;
+  });
+  return Buffer.concat([header, ...entries, ...images.map((i) => i.buffer)]);
 }
 
-// Simple ICO builder from PNG buffers
-function createIco(pngBuffers) {
-  const numImages = pngBuffers.length;
-  const headerSize = 6;
-  const dirEntrySize = 16;
-  let offset = headerSize + numImages * dirEntrySize;
-
-  const header = Buffer.alloc(headerSize);
-  header.writeUInt16LE(0, 0); // Reserved
-  header.writeUInt16LE(1, 2); // ICO type
-  header.writeUInt16LE(numImages, 4); // Number of images
-
-  const entries = [];
-  for (const img of pngBuffers) {
-    const entry = Buffer.alloc(dirEntrySize);
-    entry.writeUInt8(img.width >= 256 ? 0 : img.width, 0);
-    entry.writeUInt8(img.height >= 256 ? 0 : img.height, 1);
-    entry.writeUInt8(0, 2); // Color palette
-    entry.writeUInt8(0, 3); // Reserved
-    entry.writeUInt16LE(1, 4); // Color planes
-    entry.writeUInt16LE(32, 6); // Bits per pixel
-    entry.writeUInt32LE(img.buffer.length, 8); // Image data size
-    entry.writeUInt32LE(offset, 12); // Image data offset
-    entries.push(entry);
-    offset += img.buffer.length;
-  }
-
-  return Buffer.concat([header, ...entries, ...pngBuffers.map(img => img.buffer)]);
-}
+const write = (file, buf) => {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, buf);
+  console.log(`${file} (${buf.length} bytes)`);
+};
 
 async function run() {
-  const svgContent = getSvg(512);
+  // Square, tightly-cropped master.
+  const trimmed = await sharp(SRC).trim().png().toBuffer();
+  const { width, height } = await sharp(trimmed).metadata();
+  const side = Math.max(width, height);
+  const master = await sharp(trimmed)
+    .extend({ top: Math.floor((side - height) / 2), bottom: Math.ceil((side - height) / 2), left: Math.floor((side - width) / 2), right: Math.ceil((side - width) / 2), background: CLEAR })
+    .png()
+    .toBuffer();
 
-  // 1. Write src/app/icon.svg and public/icon.svg (standard Next.js SVG icon)
-  fs.writeFileSync(path.resolve('src/app/icon.svg'), svgContent, 'utf-8');
-  fs.writeFileSync(path.resolve('public/icon.svg'), svgContent, 'utf-8');
-  console.log('Created src/app/icon.svg & public/icon.svg');
+  const seal = (size) => sharp(master).resize(size, size).png({ compressionLevel: 9, palette: true, quality: 90 }).toBuffer();
+  const onWhite = (size, scale) =>
+    sharp(master)
+      .resize(Math.round(size * scale), Math.round(size * scale))
+      .extend({ top: 0, bottom: 0, left: 0, right: 0, background: CLEAR })
+      .toBuffer()
+      .then((inner) =>
+        sharp({ create: { width: size, height: size, channels: 4, background: WHITE } })
+          .composite([{ input: inner, gravity: "centre" }])
+          .png({ compressionLevel: 9 })
+          .toBuffer(),
+      );
 
-  // Also create public/icons directory
-  const publicIconsDir = path.resolve('public/icons');
-  if (!fs.existsSync(publicIconsDir)) {
-    fs.mkdirSync(publicIconsDir, { recursive: true });
-  }
+  // Inner disc (caduceus on gradient) for tiny sizes, masked to a circle.
+  const discRatio = 0.74; // inner disc diameter / seal diameter
+  const discSide = Math.round(side * discRatio);
+  const disc = await sharp(master)
+    .extract({ left: Math.round((side - discSide) / 2), top: Math.round((side - discSide) / 2), width: discSide, height: discSide })
+    .composite([{ input: Buffer.from(`<svg width="${discSide}" height="${discSide}"><circle cx="${discSide / 2}" cy="${discSide / 2}" r="${discSide / 2}"/></svg>`), blend: "dest-in" }])
+    .png()
+    .toBuffer();
+  const tiny = (size) => sharp(disc).resize(size, size).png({ compressionLevel: 9 }).toBuffer();
 
-  // 2. Generate PNGs
-  const sizes = [16, 32, 48, 180, 192, 512];
-  const pngs = {};
+  // UI logo (rendered through next/image, which serves resized WebP/AVIF).
+  write("public/images/conp-seal.png", await seal(512));
+  // Face texture for the 3D hero medallion: large enough for crisp lettering on 2x screens.
+  write("public/images/conp-seal-1024.webp", await sharp(master).resize(1024, 1024).webp({ quality: 90, alphaQuality: 100 }).toBuffer());
 
-  for (const s of sizes) {
-    const buf = await sharp(Buffer.from(svgContent))
-      .resize(s, s)
-      .png()
-      .toBuffer();
-    pngs[s] = buf;
-    console.log(`Generated ${s}x${s} PNG (${buf.length} bytes)`);
-  }
+  // Browser tab
+  const ico = createIco(await Promise.all([16, 32, 48].map(async (size) => ({ size, buffer: await tiny(size) }))));
+  write("src/app/favicon.ico", ico);
+  write("public/favicon.ico", ico);
+  write("src/app/icon.png", await seal(192));
 
-  // 3. Apple Touch Icon (180x180) -> src/app/apple-icon.png and public/apple-touch-icon.png
-  fs.writeFileSync(path.resolve('src/app/apple-icon.png'), pngs[180]);
-  fs.writeFileSync(path.resolve('public/apple-touch-icon.png'), pngs[180]);
-  console.log('Created apple-touch-icon.png');
+  // Home screen / PWA
+  const apple = await onWhite(180, 0.9);
+  write("src/app/apple-icon.png", apple);
+  write("public/apple-touch-icon.png", apple);
+  write("public/icons/icon-192.png", await seal(192));
+  write("public/icons/icon-512.png", await seal(512));
+  write("public/icons/icon-maskable-512.png", await onWhite(512, 0.8));
 
-  // 4. PWA Icons -> public/icons/icon-192.png and public/icons/icon-512.png
-  fs.writeFileSync(path.resolve('public/icons/icon-192.png'), pngs[192]);
-  fs.writeFileSync(path.resolve('public/icons/icon-512.png'), pngs[512]);
-  console.log('Created public/icons/icon-192.png & icon-512.png');
-
-  // 5. Multi-resolution ICO (16, 32, 48) -> src/app/favicon.ico and public/favicon.ico
-  const icoBuffer = createIco([
-    { width: 16, height: 16, buffer: pngs[16] },
-    { width: 32, height: 32, buffer: pngs[32] },
-    { width: 48, height: 48, buffer: pngs[48] },
-  ]);
-
-  fs.writeFileSync(path.resolve('src/app/favicon.ico'), icoBuffer);
-  fs.writeFileSync(path.resolve('public/favicon.ico'), icoBuffer);
-  console.log(`Created favicon.ico in src/app and public (${icoBuffer.length} bytes)`);
+  // Previews for checking the tiny sizes by eye.
+  if (process.argv.includes("--preview")) write(path.resolve(process.env.PREVIEW_DIR ?? ".", "favicon-32-preview.png"), await sharp(await tiny(32)).resize(256, 256, { kernel: "nearest" }).png().toBuffer());
 }
 
-run().catch(console.error);
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

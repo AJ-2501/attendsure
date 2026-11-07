@@ -72,7 +72,7 @@ describe("Student profile sign-up (event-independent)", () => {
     studentId: "2020001234",
     section: "bsn-1a",
     yearLevel: "2nd Year",
-    department: "College of Nursing",
+    department: "College of Nursing and Pharmacy",
     email: "MCSantos.Student@UA.EDU.PH",
     password: "nurse2024",
     consent: true,

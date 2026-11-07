@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, type FieldErrors, type Resolver, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { eventSchema, type EventInput } from "@/lib/schemas";
+import { STUDENT_EMAIL_DOMAIN, eventSchema, type EventInput } from "@/lib/schemas";
 import { zonedLocalToUtc } from "@/lib/time";
-import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { AlertTriangle, CheckCircle2, ChevronDown, Info, Loader2 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { clsx } from "clsx";
 
@@ -34,7 +34,7 @@ const LABELS: Record<string, string> = {
   startsAt: "Event start", endsAt: "Event end", registrationOpensAt: "Registration opens", registrationClosesAt: "Registration closes",
   timeInOpensAt: "Time-in opens", timeInClosesAt: "Time-in closes", timeOutOpensAt: "Time-out opens", timeOutClosesAt: "Time-out closes",
   timeOutQrTtlMinutes: "Time-out QR validity", capacity: "Capacity", allowTimeIn: "Attendance actions",
-  studentIdPattern: "Student ID pattern", studentIdHint: "Student ID hint", status: "Status",
+  studentIdHint: "Student ID hint", status: "Status",
 };
 
 /**
@@ -106,7 +106,9 @@ function Toggle({ id, label, description, field }: { id: string; label: string; 
 
 export default function EventFormClient({ defaultValues, onSubmit, submitLabel, cancelHref = "/admin/events" }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [summaryKeys, setSummaryKeys] = useState<(keyof EventInput)[]>([]);
 
   const {
@@ -114,6 +116,8 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
     handleSubmit,
     setError,
     setFocus,
+    getValues,
+    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<EventInput>({
     resolver: eventResolver,
@@ -126,9 +130,8 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       allowTimeIn: true,
       allowTimeOut: true,
       requireTimeOut: true,
-      studentIdPattern: "^[0-9]{10}$",
       studentIdHint: "e.g. 2020001234 (10 digits, no dash)",
-      requiredFields: { department: true, year_level: true, email: false },
+      requiredFields: { department: true, year_level: true },
       ...defaultValues,
     },
   });
@@ -141,13 +144,39 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
     if (first) setFocus(first, { shouldSelect: false });
   }
 
+  // Warn before closing or reloading the tab with unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  // The saved confirmation fades after a few seconds.
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 6000);
+    return () => clearTimeout(t);
+  }, [justSaved]);
+
   async function submit(data: EventInput) {
     setServerError(null);
     setSummaryKeys([]);
+    setJustSaved(false);
+    const raw = getValues(); // the values as typed (data holds the UTC-converted copy)
     try {
       const result = await onSubmit(data);
       if (result.ok && result.id) {
-        router.push(`/admin/events/${result.id}?saved=1`);
+        const editUrl = `/admin/events/${result.id}`;
+        if (pathname !== editUrl) {
+          router.push(`${editUrl}?saved=1`); // new event: open its edit page with a confirmation
+          return;
+        }
+        // Saved in place: the saved values become the new baseline, so "unsaved" clears.
+        reset(raw);
+        setJustSaved(true);
+        router.replace(editUrl, { scroll: false }); // refresh the page header; drop any stale ?saved=1
+        router.refresh();
         return;
       }
       const fieldEntries = Object.entries(result.fields ?? {});
@@ -213,7 +242,7 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
             <input id="venue" {...register("venue")} {...aria("venue")} maxLength={200} className="input" placeholder="Skills Lab 2, CON Building" />
           </F>
           <F id="organizer" label="Organizer" error={errors.organizer?.message}>
-            <input id="organizer" {...register("organizer")} {...aria("organizer")} maxLength={160} className="input" placeholder="College of Nursing" />
+            <input id="organizer" {...register("organizer")} {...aria("organizer")} maxLength={160} className="input" placeholder="College of Nursing and Pharmacy" />
           </F>
           <F id="capacity" label="Capacity" required error={errors.capacity?.message} hint="Maximum number of registrations.">
             <input id="capacity" type="number" inputMode="numeric" min={1} max={100000} {...register("capacity")} {...aria("capacity", true)} className="input" />
@@ -279,20 +308,21 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       </Section>
 
       <Section title="Registration form" description="What students must enter when registering.">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <F id="studentIdHint" label="Student ID hint" error={errors.studentIdHint?.message} hint="Shown under the Student ID field.">
-            <input id="studentIdHint" {...register("studentIdHint")} {...aria("studentIdHint", true)} maxLength={120} className="input" placeholder="e.g. 2020001234 (10 digits, no dash)" />
-          </F>
-          <F id="studentIdPattern" label="Student ID pattern" required error={errors.studentIdPattern?.message} hint="Advanced: regular expression. ^[0-9]{10}$ = 10 digits.">
-            <input id="studentIdPattern" {...register("studentIdPattern")} {...aria("studentIdPattern", true)} maxLength={200} className="input font-mono" spellCheck={false} autoCapitalize="none" />
-          </F>
+        <div className="flex items-start gap-2.5 rounded-2xl bg-brand-50 border border-brand-100 px-3.5 py-3 text-sm text-[#23403f]">
+          <Info className="w-4 h-4 mt-0.5 shrink-0 text-brand-600" aria-hidden="true" />
+          <p>
+            Always required: a <strong className="font-semibold text-ink">10-digit student ID</strong> and a{" "}
+            <strong className="font-semibold text-ink">school email (@{STUDENT_EMAIL_DOMAIN})</strong>.
+          </p>
         </div>
+        <F id="studentIdHint" label="Student ID hint" error={errors.studentIdHint?.message} hint="Shown under the Student ID field." className="sm:max-w-md">
+          <input id="studentIdHint" {...register("studentIdHint")} {...aria("studentIdHint", true)} maxLength={120} className="input" placeholder="e.g. 2020001234 (10 digits, no dash)" />
+        </F>
         <div>
           <p className="label">Also required</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Toggle id="rf-department" label="Department" description="College / department." field={register("requiredFields.department")} />
             <Toggle id="rf-year" label="Year level" description="1st to 4th year." field={register("requiredFields.year_level")} />
-            <Toggle id="rf-email" label="School email" description="Must be a school address." field={register("requiredFields.email")} />
           </div>
         </div>
       </Section>
@@ -300,12 +330,23 @@ export default function EventFormClient({ defaultValues, onSubmit, submitLabel, 
       {serverError && <div id="event-server-error" role="alert" tabIndex={-1} className="scan-rejected text-sm font-semibold outline-none">{serverError}</div>}
 
       {/* Sticky action bar: stays above the mobile tab bar, inline on desktop. */}
-      <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-4 z-10 -mx-4 sm:mx-0 px-4 py-3 sm:p-3 bg-white/95 backdrop-blur border-y sm:border border-[#dce7e5] sm:rounded-2xl shadow-[0_-4px_16px_rgb(11_46_47/0.06)] flex gap-3">
+      <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-4 z-10 -mx-4 sm:mx-0 px-4 py-3 sm:p-3 bg-white/95 backdrop-blur border-y sm:border border-[#dce7e5] sm:rounded-2xl shadow-[0_-4px_16px_rgb(11_46_47/0.06)] flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
+        {/* Save status: full width above the buttons on phones, beside them on larger screens. */}
+        <p role="status" aria-live="polite" className="order-first sm:order-last w-full sm:w-auto empty:hidden text-sm font-semibold">
+          {isDirty && !isSubmitting ? (
+            <span className="inline-flex items-center gap-2 text-[#8a5300]">
+              <span className="w-2 h-2 rounded-full bg-warning-500 shrink-0" aria-hidden="true" /> You have unsaved changes!
+            </span>
+          ) : justSaved && !isDirty ? (
+            <span className="inline-flex items-center gap-1.5 text-success-700 animate-fade-up">
+              <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" /> Your changes have been saved.
+            </span>
+          ) : null}
+        </p>
         <Link href={cancelHref} className="btn-secondary btn-lg flex-1 sm:flex-none">Cancel</Link>
         <button type="submit" disabled={isSubmitting} className="btn-primary btn-lg flex-[2] sm:flex-none sm:min-w-44">
           {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Saving…</> : submitLabel}
         </button>
-        {isDirty && <span className="hidden sm:flex items-center text-xs text-[#4b6362]">Unsaved changes</span>}
       </div>
     </form>
   );

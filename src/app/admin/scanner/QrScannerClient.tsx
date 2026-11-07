@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { AlertTriangle, Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown, SwitchCamera } from "lucide-react";
+import { AlertTriangle, Camera, CameraOff, CheckCircle, XCircle, Loader2, Wifi, WifiOff, Search, Volume2, VolumeX, ChevronDown, SwitchCamera, Flashlight, FlashlightOff } from "lucide-react";
 import { clsx } from "clsx";
 import { ACTION_LABEL } from "@/lib/messages";
 
@@ -139,7 +139,22 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
     }
   }, [playSound]);
 
+  // Torch (flashlight) for dim rooms: only offered when the camera reports support (most Android phones).
+  const [torch, setTorch] = useState<{ supported: boolean; on: boolean }>({ supported: false, on: false });
+  const videoTrack = () => (videoRef.current?.srcObject as MediaStream | null)?.getVideoTracks()[0] ?? null;
+  async function toggleTorch() {
+    const track = videoTrack();
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torch.on } as MediaTrackConstraintSet] });
+      setTorch((t) => ({ ...t, on: !t.on }));
+    } catch {
+      setTorch({ supported: false, on: false });
+    }
+  }
+
   const stopCamera = useCallback(() => {
+    setTorch({ supported: false, on: false });
     controlsRef.current?.stop();
     controlsRef.current = null;
     const stream = videoRef.current?.srcObject as MediaStream | null;
@@ -201,6 +216,9 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
         });
       }
       setScanning(true);
+      const track = (videoRef.current?.srcObject as MediaStream | null)?.getVideoTracks()[0];
+      const caps = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+      setTorch({ supported: Boolean(caps?.torch), on: false });
     } catch (err) {
       setCameraError(cameraErrorMessage(err));
       stopCamera();
@@ -360,6 +378,16 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
               <button onClick={stopCamera} className="btn btn-lg flex-1 bg-white/10 text-white hover:bg-white/20">
                 <CameraOff className="w-5 h-5" aria-hidden="true" /> Stop camera
               </button>
+              {torch.supported && (
+                <button
+                  onClick={toggleTorch}
+                  className={clsx("btn btn-lg w-14 px-0 text-white", torch.on ? "bg-[#e3c98c]/30 hover:bg-[#e3c98c]/40" : "bg-white/10 hover:bg-white/20")}
+                  aria-label={torch.on ? "Turn off flashlight" : "Turn on flashlight"}
+                  aria-pressed={torch.on}
+                >
+                  {torch.on ? <FlashlightOff className="w-5 h-5" aria-hidden="true" /> : <Flashlight className="w-5 h-5" aria-hidden="true" />}
+                </button>
+              )}
               <button onClick={flipCamera} className="btn btn-lg w-14 px-0 bg-white/10 text-white hover:bg-white/20" aria-label="Switch camera">
                 <SwitchCamera className="w-5 h-5" aria-hidden="true" />
               </button>
@@ -419,6 +447,9 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
               className="input font-mono"
               placeholder="2020001234 or SA-XXXX-XXXX"
               autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="next"
             />
             {manualErrors.query && (
               <p id="manual-query-err" className="field-error flex items-center gap-1.5" role="alert">
@@ -440,6 +471,7 @@ export default function QrScannerClient({ events, defaultEventId }: Props) {
               aria-describedby={manualErrors.reason ? "manual-reason-err" : undefined}
               className="input"
               placeholder="QR pass damaged / phone battery dead"
+              enterKeyHint="send"
             />
             {manualErrors.reason && (
               <p id="manual-reason-err" className="field-error flex items-center gap-1.5" role="alert">

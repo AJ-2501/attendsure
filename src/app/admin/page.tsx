@@ -7,6 +7,7 @@ import { ChevronRight, ScanLine, Plus, Users, Download } from "lucide-react";
 import { clsx } from "clsx";
 import Link from "next/link";
 import DashboardRealtime from "./DashboardRealtime";
+import DashboardEventSwitcher from "./DashboardEventSwitcher";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -19,9 +20,16 @@ function ProgressRing({ pct }: { pct: number }) {
   const r = 40, c = 2 * Math.PI * r;
   return (
     <svg role="img" aria-label={`${pct} percent checked in`} viewBox="0 0 96 96" className="w-24 h-24 shrink-0">
+      <defs>
+        <linearGradient id="seal-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="var(--color-seal-green)" />
+          <stop offset="55%" stopColor="var(--color-seal-slate)" />
+          <stop offset="100%" stopColor="var(--color-seal-purple)" />
+        </linearGradient>
+      </defs>
       <circle cx="48" cy="48" r={r} fill="none" stroke="#e1ecea" strokeWidth="10" />
       <circle
-        cx="48" cy="48" r={r} fill="none" stroke="var(--color-brand-600)" strokeWidth="10" strokeLinecap="round"
+        cx="48" cy="48" r={r} fill="none" stroke="url(#seal-ring)" strokeWidth="10" strokeLinecap="round"
         strokeDasharray={`${(pct / 100) * c} ${c}`} transform="rotate(-90 48 48)"
       />
       <text x="48" y="54" textAnchor="middle" fontSize="20" fontWeight="800" fill="var(--color-ink)">{pct}%</text>
@@ -29,16 +37,23 @@ function ProgressRing({ pct }: { pct: number }) {
   );
 }
 
-export default async function AdminDashboard() {
-  await requirePagePermission("dashboard.view");
-  const { events } = await listAllEvents(1, 10);
+export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
+  // Auth, the event list and (with ?event=) that event's stats all load in one parallel batch.
+  const [, { event: requestedId }, { events: allEvents }, requestedStats] = await Promise.all([
+    requirePagePermission("dashboard.view"),
+    searchParams,
+    listAllEvents(1, 100),
+    searchParams.then(({ event }) => (event && /^[0-9a-f-]{36}$/i.test(event) ? getEventStats(event) : undefined)),
+  ]);
+  const events = allEvents.slice(0, 10);
   const now = new Date();
 
-  // Fetch stats for the most relevant event (ongoing > open > upcoming)
-  const primary = events.find((e) => effectiveStatus(e, now) === "ongoing")
-    ?? events.find((e) => effectiveStatus(e, now) === "open")
-    ?? events[0];
-  const stats = primary ? await getEventStats(primary.id) : null;
+  // The chosen event (?event=), else the most relevant one (ongoing > open > newest).
+  const primary = allEvents.find((e) => e.id === requestedId)
+    ?? allEvents.find((e) => effectiveStatus(e, now) === "ongoing")
+    ?? allEvents.find((e) => effectiveStatus(e, now) === "open")
+    ?? allEvents[0];
+  const stats = !primary ? null : primary.id === requestedId && requestedStats !== undefined ? requestedStats : await getEventStats(primary.id);
   const pct = stats && stats.registered > 0 ? Math.round((stats.timed_in / stats.registered) * 100) : 0;
 
   return (
@@ -70,33 +85,52 @@ export default async function AdminDashboard() {
         ))}
       </nav>
 
-      {stats && primary && (
-        <section className="space-y-3">
-          <div className="card p-5 flex items-center gap-5 shadow-[0_8px_24px_rgb(11_46_47/0.08)]">
-            <ProgressRing pct={pct} />
-            <div className="min-w-0 flex flex-col gap-1">
-              <span className="text-xs font-bold tracking-wide uppercase text-[#4b6362]">Checked in</span>
-              <span className="text-[28px] font-extrabold leading-none text-ink">
-                {stats.timed_in.toLocaleString()} <span className="text-base font-semibold text-[#4b6362]">/ {stats.registered.toLocaleString()}</span>
-              </span>
-              <span className="text-sm font-semibold text-ink truncate">{primary.name}</span>
-              <Link href={`/admin/reports?event=${primary.id}`} prefetch={true} className="text-sm font-semibold text-brand-600 inline-flex items-center gap-0.5 min-h-8">
-                Full report <ChevronRight className="w-4 h-4" />
-              </Link>
+      {primary && (
+        <section className="space-y-3" aria-label="Event statistics">
+          <DashboardEventSwitcher
+            selectedId={primary.id}
+            events={allEvents.map((e) => ({
+              id: e.id,
+              name: e.name,
+              status: effectiveStatus(e, now),
+              date: formatInZone(e.starts_at, e.timezone, { dateStyle: "medium" }),
+            }))}
+          >
+            {stats ? (
+              <div className="flex items-center gap-5">
+                <ProgressRing pct={pct} />
+                <div className="min-w-0 flex flex-col gap-1">
+                  <span className="text-xs font-bold tracking-wide uppercase text-[#4b6362]">Checked in</span>
+                  <span className="text-[28px] font-extrabold leading-none text-ink">
+                    {stats.timed_in.toLocaleString()} <span className="text-base font-semibold text-[#4b6362]">/ {stats.registered.toLocaleString()}</span>
+                  </span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-ink truncate">{primary.name}</span>
+                    <span className={clsx("badge shrink-0", STATUS_CLASS[effectiveStatus(primary, now)] ?? "badge-gray")}>{STATUS_LABEL[effectiveStatus(primary, now)]}</span>
+                  </span>
+                  <Link href={`/admin/reports?event=${primary.id}`} prefetch={true} className="text-sm font-semibold text-brand-600 inline-flex items-center gap-0.5 min-h-8">
+                    Full report <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-sm text-[#4b6362]">Statistics for this event aren&apos;t available right now. Try again in a moment.</p>
+            )}
+          </DashboardEventSwitcher>
+          {stats && (
+            <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
+              <Stat label="Timed out" value={stats.timed_out} />
+              <Stat label="Not arrived" value={stats.not_arrived} />
+              <Stat label="Rejected" value={stats.rejected_scans} tone="danger" />
+              <Stat label="Still inside" value={stats.checked_in} className="hidden lg:flex" />
+              <Stat label="Accepted scans" value={stats.accepted_scans} className="hidden lg:flex" />
+              <Stat label="Cancelled" value={stats.cancelled} className="hidden lg:flex" />
             </div>
-          </div>
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
-            <Stat label="Timed out" value={stats.timed_out} />
-            <Stat label="Not arrived" value={stats.not_arrived} />
-            <Stat label="Rejected" value={stats.rejected_scans} tone="danger" />
-            <Stat label="Still inside" value={stats.checked_in} className="hidden lg:flex" />
-            <Stat label="Accepted scans" value={stats.accepted_scans} className="hidden lg:flex" />
-            <Stat label="Cancelled" value={stats.cancelled} className="hidden lg:flex" />
-          </div>
+          )}
         </section>
       )}
 
-      {primary && <DashboardRealtime eventId={primary.id} />}
+      {primary && <DashboardRealtime key={primary.id} eventId={primary.id} />}
 
       <section>
         <div className="flex items-center justify-between mb-3">

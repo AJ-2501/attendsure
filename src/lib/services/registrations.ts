@@ -1,16 +1,16 @@
 import "server-only";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/server";
 import { FIELD, tdesDecrypt, tdesEncrypt } from "@/lib/crypto/tdes";
 import { newAccessToken, newQrCredential, newReferenceCode, sha256Hex, studentIdDigest } from "@/lib/crypto/tokens";
-import { buildRegistrationSchema, normalizeStudentId, type RegistrationRules } from "@/lib/schemas";
+import { buildRegistrationSchema, normalizeStudentId, withFixedRules, type RegistrationRules } from "@/lib/schemas";
 import { serverEnv } from "@/lib/env";
 import type { AttendanceRow, CredentialRow, EventRow, RegistrationRow } from "@/lib/types";
 
 export function rulesFor(event: Pick<EventRow, "student_id_pattern" | "student_id_hint" | "required_fields">): RegistrationRules {
   return {
-    studentIdPattern: event.student_id_pattern,
+    ...withFixedRules(event.required_fields),
     studentIdHint: event.student_id_hint,
-    requiredFields: event.required_fields,
     emailDomain: serverEnv().schoolEmailDomain,
   };
 }
@@ -83,7 +83,7 @@ export function maskStudentId(id: string) {
 }
 
 /** Capability-token access for participant pages (token proves possession of the private link). */
-export async function getParticipantByAccessToken(token: string): Promise<ParticipantView | null> {
+export const getParticipantByAccessToken = cache(async (token: string): Promise<ParticipantView | null> => {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const db = createAdminClient();
   const { data: reg } = await db
@@ -106,7 +106,7 @@ export async function getParticipantByAccessToken(token: string): Promise<Partic
     attendance,
     credentials: credentials ?? [],
   };
-}
+});
 
 /** Staff-only decrypt helper (callers MUST have passed requirePermission). */
 export function decryptIdentity(reg: Pick<RegistrationRow, "participant_name_encrypted" | "student_id_encrypted">) {
@@ -121,9 +121,11 @@ export async function findRegistration(eventId: string, query: string) {
   const db = createAdminClient();
   const q = query.trim().toUpperCase();
   const isRef = /^SA-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(q);
-  const base = db.from("registrations").select("*").eq("event_id", eventId);
+  type Found = RegistrationRow & { attendance_records: Pick<AttendanceRow, "time_in_at" | "time_out_at"> | null };
+  // Attendance comes embedded so callers don't need a second round trip.
+  const base = db.from("registrations").select("*, attendance_records(time_in_at, time_out_at)").eq("event_id", eventId);
   const { data } = isRef
-    ? await base.eq("reference_code", q).maybeSingle<RegistrationRow>()
-    : await base.eq("student_id_lookup_digest", studentIdDigest(normalizeStudentId(q))).maybeSingle<RegistrationRow>();
+    ? await base.eq("reference_code", q).maybeSingle<Found>()
+    : await base.eq("student_id_lookup_digest", studentIdDigest(normalizeStudentId(q))).maybeSingle<Found>();
   return data;
 }

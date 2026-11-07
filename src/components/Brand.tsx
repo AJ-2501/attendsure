@@ -1,27 +1,34 @@
+import Image from "next/image";
 import { clsx } from "clsx";
+import seal from "../../public/images/conp-seal.png";
 
-/** Heart with a nursing cross — the AttendSure mark. */
-export function LogoMark({ className, strokeWidth = 2.2 }: { className?: string; strokeWidth?: number }) {
+/**
+ * UA College of Nursing and Pharmacy seal. Decorative next to the wordmark (the
+ * surrounding link carries the accessible name); pass `alt` when shown alone.
+ */
+export function Seal({ className, alt = "", priority }: { className?: string; alt?: string; priority?: boolean }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M19.5 12.6 12 20l-7.5-7.4A4.6 4.6 0 0 1 12 6.6a4.6 4.6 0 0 1 7.5 6Z" />
-      <path d="M12 10v5M9.5 12.5h5" />
-    </svg>
+    <Image
+      src={seal}
+      alt={alt}
+      aria-hidden={alt ? undefined : true}
+      sizes="64px"
+      quality={90}
+      priority={priority}
+      className={clsx("shrink-0 rounded-full drop-shadow-[0_2px_6px_rgb(11_46_47/0.25)]", className)}
+    />
   );
 }
 
-/** Square badge + wordmark. `tone="dark"` is for use on the ink background. */
+/** Seal + wordmark. `tone="dark"` is for use on the ink background. */
 export function Logo({ size = "md", tone = "light", className }: { size?: "sm" | "md" | "lg"; tone?: "light" | "dark"; className?: string }) {
-  const box = { sm: "w-8 h-8 rounded-[10px]", md: "w-9 h-9 rounded-[11px]", lg: "w-11 h-11 rounded-[14px]" }[size];
-  const icon = { sm: "w-[18px] h-[18px]", md: "w-5 h-5", lg: "w-6 h-6" }[size];
+  const mark = { sm: "w-10 h-10", md: "w-11 h-11", lg: "w-14 h-14" }[size];
   const text = { sm: "text-base", md: "text-lg", lg: "text-2xl" }[size];
   return (
     <span className={clsx("inline-flex items-center gap-2.5", className)}>
-      <span className={clsx(box, "bg-brand-600 text-white flex items-center justify-center shrink-0")}>
-        <LogoMark className={icon} />
-      </span>
+      <Seal className={mark} priority />
       <span className={clsx(text, "font-extrabold tracking-tight", tone === "dark" ? "text-white" : "text-ink")}>
-        Attend<span className={tone === "dark" ? "text-mint" : "text-brand-600"}>Sure</span>
+        Attend<span className={tone === "dark" ? "text-gradient-seal" : "text-gradient-seal-ink"}>Sure</span>
       </span>
     </span>
   );

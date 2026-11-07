@@ -100,11 +100,11 @@ export async function exportQrToPhotos(options: ExportQrOptions): Promise<Export
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText("ATTENDSURE · CON PASS", cardX + 32, cardY + 50);
+    ctx.fillText("ATTENDSURE · CONP PASS", cardX + 32, cardY + 50);
 
     ctx.fillStyle = isTimeIn ? "#ccfbf1" : "#d1fae5";
     ctx.font = "600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    ctx.fillText("College of Nursing Attendance", cardX + 32, cardY + 80);
+    ctx.fillText("College of Nursing and Pharmacy Attendance", cardX + 32, cardY + 80);
 
     // Action Badge on right of header
     const badgeText = isTimeIn ? "TIME IN" : "TIME OUT";

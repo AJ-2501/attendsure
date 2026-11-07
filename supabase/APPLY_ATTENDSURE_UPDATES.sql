@@ -5,7 +5,7 @@
 -- file -> Run. Safe to run more than once. Runs as one transaction: if anything
 -- fails, nothing is changed.
 --
--- Contains, in order: 20261019000003, 20261019000004, 20261019000005.
+-- Contains, in order: 20261019000003, 20261019000004, 20261019000005, 20261108000006, 20261108000007.
 -- =============================================================================
 begin;
 
@@ -147,6 +147,36 @@ update public.events
    set student_id_pattern = '^[0-9]{10}$',
        student_id_hint = 'e.g. 2020001234 (10 digits, no dash)'
  where student_id_pattern in ('^[0-9]{4}-[0-9]{5}$', '^[0-9]{4}-[0-9]{6}$', '^[0-9]{10}$');
+
+-- ----------------------------------------------------------------------------
+-- 20261108000006_performance_indexes.sql
+-- ----------------------------------------------------------------------------
+-- AttendSure: composite indexes for hot filtered + sorted reads (idempotent).
+
+-- Landing page / student dashboard: published events ordered by start time.
+create index if not exists events_status_starts_idx
+  on public.events (status, starts_at);
+
+-- Admin participant list and CSV export: one event's registrations by registration time.
+create index if not exists registrations_event_registered_idx
+  on public.registrations (event_id, registered_at desc);
+
+-- Decrypt page "Recent decryptions" and other per-action audit lookups.
+create index if not exists audit_action_created_idx
+  on public.attendance_audit_logs (action, created_at desc);
+
+-- ----------------------------------------------------------------------------
+-- 20261108000007_fixed_registration_rules.sql
+-- ----------------------------------------------------------------------------
+-- AttendSure: every event uses a 10-digit student ID and requires a school email.
+-- The app enforces both regardless of stored values; this keeps the stored data consistent.
+alter table public.events alter column student_id_pattern set default '^[0-9]{10}$';
+alter table public.events alter column required_fields set default '{"department":true,"year_level":true,"email":true}'::jsonb;
+update public.events
+   set student_id_pattern = '^[0-9]{10}$',
+       required_fields = coalesce(required_fields, '{}'::jsonb) || '{"email": true}'::jsonb
+ where student_id_pattern is distinct from '^[0-9]{10}$'
+    or coalesce((required_fields ->> 'email')::boolean, false) = false;
 
 -- Make the API pick up the new columns and functions immediately.
 notify pgrst, 'reload schema';

@@ -76,7 +76,7 @@ function RegisterForm() {
 
   const needsAccount = !me; // signed-out visitors create their account here
   const rf = useMemo(
-    () => selectedEvent?.required_fields ?? { department: true, year_level: true, email: false },
+    () => selectedEvent?.required_fields ?? { department: true, year_level: true, email: true },
     [selectedEvent?.required_fields]
   );
 
@@ -331,7 +331,7 @@ function RegisterForm() {
             {(rf.department || selectedEvent) && (
               <div>
                 <label className="label" htmlFor="department">College / department {rf.department ? "*" : "(optional)"}</label>
-                <input id="department" {...register("department")} {...aria("department")} placeholder="College of Nursing" maxLength={120} className="input" />
+                <input id="department" {...register("department")} {...aria("department")} placeholder="College of Nursing and Pharmacy" maxLength={120} className="input" />
                 <FieldError id="department-msg" message={err("department")} />
               </div>
             )}

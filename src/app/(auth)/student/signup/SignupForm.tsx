@@ -44,7 +44,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     mode: "onTouched",
-    defaultValues: { department: "College of Nursing", consent: true },
+    defaultValues: { department: "College of Nursing and Pharmacy", consent: true },
   });
 
   async function onSubmit(values: FormValues) {

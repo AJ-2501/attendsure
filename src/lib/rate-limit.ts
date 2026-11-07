@@ -15,6 +15,7 @@ export const RATE_LIMITS = {
   timeOutIssue: { windowSeconds: 60, max: 6 }, // per registration
   scan: { windowSeconds: 60, max: 120 }, // per staff member
   lookup: { windowSeconds: 60, max: 30 }, // per staff member
+  decrypt: { windowSeconds: 60, max: 10 }, // per staff member (bulk requests of up to 500 values)
 } satisfies Record<string, RateLimitRule>;
 
 export type Hit = (key: string, rule: RateLimitRule) => Promise<boolean>;

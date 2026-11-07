@@ -48,13 +48,11 @@ function toFormValues(e: EventRow): Partial<EventInput> {
 }
 
 export default async function EditEventPage({ params, searchParams }: Props) {
-  await requirePagePermission("events.manage");
-  const { id } = await params;
-  const { saved } = await searchParams;
+  const [, { id }, { saved }] = await Promise.all([requirePagePermission("events.manage"), params, searchParams]);
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const event = await getEventById(id);
+  const [event, counts] = await Promise.all([getEventById(id), countRegistrations([id])]);
   if (!event) notFound();
-  const registrations = (await countRegistrations([id]))[id] ?? 0;
+  const registrations = counts[id] ?? 0;
   const status = effectiveStatus(event);
 
   return (
@@ -79,7 +77,7 @@ export default async function EditEventPage({ params, searchParams }: Props) {
 
       {saved && (
         <div role="status" className="scan-accepted text-sm font-semibold flex items-center gap-2 max-w-3xl">
-          <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Changes saved.
+          <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> Your event has been saved.
         </div>
       )}
 

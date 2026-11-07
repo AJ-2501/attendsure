@@ -16,7 +16,7 @@ export default async function NewEventPage() {
           <ChevronLeft className="w-4 h-4" aria-hidden="true" /> All events
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-ink">New event</h1>
-        <p className="text-[#4b6362] text-sm">Create a College of Nursing event. Save as Draft until it&apos;s ready for students.</p>
+        <p className="text-[#4b6362] text-sm">Create a College of Nursing and Pharmacy event. Save as Draft until it&apos;s ready for students.</p>
       </div>
       <EventFormClient onSubmit={createEventAction} submitLabel="Create event" />
     </div>

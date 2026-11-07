@@ -29,3 +29,18 @@ describe("3DES encrypt / decrypt roundtrip", () => {
     expect(() => tdesEncrypt("x".repeat(2049), FIELD.name)).toThrow("Plaintext too long");
   });
 });
+
+describe("tdesDecryptAnyField", () => {
+  it("identifies the column a value was encrypted for", async () => {
+    const { tdesDecryptAnyField } = await import("@/lib/crypto/tdes");
+    expect(tdesDecryptAnyField(tdesEncrypt("2024-00123", FIELD.studentId))).toEqual({ field: "studentId", value: "2024-00123" });
+    expect(tdesDecryptAnyField(tdesEncrypt("Ana Reyes", FIELD.profileName))).toEqual({ field: "profileName", value: "Ana Reyes" });
+  });
+
+  it("returns null for tampered values", async () => {
+    const { tdesDecryptAnyField } = await import("@/lib/crypto/tdes");
+    const [v, iv, ct, mac] = tdesEncrypt("Ana Reyes", FIELD.name).split(".");
+    const flipped = (ct[0] === "A" ? "B" : "A") + ct.slice(1);
+    expect(tdesDecryptAnyField([v, iv, flipped, mac].join("."))).toBeNull();
+  });
+});

@@ -9,18 +9,19 @@ import ReportsCharts from "./ReportsCharts";
 export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requirePagePermission("reports.view");
-  const sp = await searchParams;
-  const { events } = await listAllEvents(1, 50);
+  const loadReport = (id: string) =>
+    Promise.all([getEventStats(id), getSectionBreakdown(id, "section"), getSectionBreakdown(id, "department"), getSectionBreakdown(id, "year_level")]);
+  // Auth, the event list and (with ?event=) that event's report all load in one parallel batch.
+  const [, sp, { events }, early] = await Promise.all([
+    requirePagePermission("reports.view"),
+    searchParams,
+    listAllEvents(1, 50),
+    searchParams.then((sp) => (sp.event ? loadReport(sp.event) : null)),
+  ]);
   const eventId = sp.event ?? events[0]?.id ?? "";
   const activeEvent = events.find((e) => e.id === eventId);
 
-  const [stats, sectionBreakdown, deptBreakdown, yearBreakdown] = await Promise.all([
-    eventId ? getEventStats(eventId) : null,
-    eventId ? getSectionBreakdown(eventId, "section") : [],
-    eventId ? getSectionBreakdown(eventId, "department") : [],
-    eventId ? getSectionBreakdown(eventId, "year_level") : [],
-  ]);
+  const [stats, sectionBreakdown, deptBreakdown, yearBreakdown] = early ?? (eventId ? await loadReport(eventId) : [null, [], [], []]);
 
   return (
     <div className="space-y-5 sm:space-y-8 animate-fade-up">

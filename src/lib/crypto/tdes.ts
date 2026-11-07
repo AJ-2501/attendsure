@@ -127,3 +127,21 @@ export const FIELD = {
   profileName: "profiles.full_name",
   profileStudentId: "profiles.student_id",
 } as const;
+
+export type FieldKey = keyof typeof FIELD;
+
+/**
+ * Decrypt an envelope whose column is unknown (e.g. pasted from an export).
+ * The MAC binds each value to exactly one context, so trying each is safe:
+ * at most one can verify. Returns null when none do.
+ */
+export function tdesDecryptAnyField(envelope: string): { field: FieldKey; value: string } | null {
+  for (const field of Object.keys(FIELD) as FieldKey[]) {
+    try {
+      return { field, value: tdesDecrypt(envelope, FIELD[field]) };
+    } catch (err) {
+      if (!(err instanceof DecryptionError)) throw err;
+    }
+  }
+  return null;
+}

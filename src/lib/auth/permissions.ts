@@ -12,6 +12,7 @@ export type Permission =
   | "events.manage"
   | "reports.view"
   | "reports.export"
+  | "records.decrypt"
   | "audit.view"
   | "roles.manage";
 
@@ -28,6 +29,7 @@ const MATRIX: Record<StaffRole, Permission[]> = {
     "events.manage",
     "reports.view",
     "reports.export",
+    "records.decrypt",
     "audit.view",
   ],
   super_admin: [
@@ -41,6 +43,7 @@ const MATRIX: Record<StaffRole, Permission[]> = {
     "events.manage",
     "reports.view",
     "reports.export",
+    "records.decrypt",
     "audit.view",
     "roles.manage",
   ],
