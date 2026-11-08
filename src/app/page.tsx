@@ -9,6 +9,7 @@ import { Logo } from "@/components/Brand";
 import SealScene from "@/components/SealScene";
 import EventBrowser, { type EventItem } from "@/components/EventBrowser";
 import JumpToEvents from "@/components/JumpToEvents";
+import SiteFooter from "@/components/SiteFooter";
 
 // Event status depends on the current time and new events must appear immediately.
 export const dynamic = "force-dynamic";
@@ -115,7 +116,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-12 sm:pb-16">
         <div className="mb-5 flex flex-col gap-1">
           <p className="self-start text-xs font-bold tracking-[0.08em] uppercase text-gradient-seal-ink">Calendar</p>
           <h2 id="events" tabIndex={-1} className="scroll-mt-24 outline-none text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">Events</h2>
@@ -125,6 +126,7 @@ export default async function HomePage() {
           <EventBrowser items={items} />
         </Suspense>
       </main>
+      <SiteFooter />
     </div>
   );
 }

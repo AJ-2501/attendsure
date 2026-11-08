@@ -3,7 +3,7 @@ import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/server";
 import { FIELD, tdesDecrypt, tdesEncrypt } from "@/lib/crypto/tdes";
 import { deriveQrToken, newAccessToken, studentIdDigest } from "@/lib/crypto/tokens";
-import { normalizeStudentId, studentProfileSchema, studentSignupSchema } from "@/lib/schemas";
+import { normalizeStudentId, studentDetailsSchema, studentSignupSchema, type StudentDetails } from "@/lib/schemas";
 import { registerParticipant } from "@/lib/services/registrations";
 import { listPublishedEvents } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase, timeOutWindow } from "@/lib/time";
@@ -274,20 +274,8 @@ export interface StudentProfile {
   department: string;
 }
 
-export type ProfileSignupResult =
-  | { ok: true; profileId: string }
-  | { ok: false; code: "VALIDATION_ERROR"; fields: Record<string, string[]> }
-  | { ok: false; code: "EMAIL_TAKEN" | "NOT_MIGRATED" | "ERROR" };
-
-/** Sign up once with personal details + credentials; no event required. */
-export async function signUpStudent(raw: unknown): Promise<ProfileSignupResult> {
-  const parsed = studentProfileSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
-  const v = parsed.data;
-
-  const account = await createStudentUser(v.email, v.password, v.fullName);
-  if (!account.ok) return { ok: false, code: account.code };
-
+/** Save a student's details on their profile (encrypted). */
+export async function saveStudentDetails(profileId: string, v: Omit<StudentDetails, "consent">): Promise<boolean> {
   const { error } = await createAdminClient()
     .from("profiles")
     .update({
@@ -298,13 +286,9 @@ export async function signUpStudent(raw: unknown): Promise<ProfileSignupResult> 
       year_level: v.yearLevel,
       department: v.department,
     })
-    .eq("id", account.profileId);
-  if (error) {
-    await deleteStudentUser(account.userId); // roll back so the student can retry
-    log.error("student_profile_save", { message: error.message });
-    return { ok: false, code: /column|schema cache/i.test(error.message) ? "NOT_MIGRATED" : "ERROR" };
-  }
-  return { ok: true, profileId: account.profileId };
+    .eq("id", profileId);
+  if (error) log.error("student_profile_save", { message: error.message });
+  return !error;
 }
 
 type ProfileRow = { full_name_encrypted: string | null; student_id_encrypted: string | null; section: string | null; year_level: string | null; department: string | null };
@@ -378,21 +362,9 @@ export async function registerFromProfile(profileId: string, accountEmail: strin
 
 /** Update saved details (no credentials). */
 export async function updateStudentProfile(profileId: string, raw: unknown): Promise<{ ok: true } | { ok: false; fields: Record<string, string[]> }> {
-  const parsed = studentProfileSchema.pick({ fullName: true, studentId: true, section: true, yearLevel: true, department: true }).safeParse(raw);
+  const parsed = studentDetailsSchema.omit({ consent: true }).safeParse(raw);
   if (!parsed.success) return { ok: false, fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
-  const v = parsed.data;
-  const { error } = await createAdminClient()
-    .from("profiles")
-    .update({
-      full_name_encrypted: tdesEncrypt(v.fullName, FIELD.profileName),
-      student_id_encrypted: tdesEncrypt(v.studentId, FIELD.profileStudentId),
-      student_id_digest: studentIdDigest(v.studentId),
-      section: v.section,
-      year_level: v.yearLevel,
-      department: v.department,
-    })
-    .eq("id", profileId);
-  if (error) return { ok: false, fields: { form: ["Couldn't save your details. Please try again."] } };
+  if (!(await saveStudentDetails(profileId, parsed.data))) return { ok: false, fields: { form: ["Couldn't save your details. Please try again."] } };
   return { ok: true };
 }
 

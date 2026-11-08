@@ -1,17 +1,12 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { AlertTriangle, ChevronDown, Eye, EyeOff, Loader2, ShieldCheck, UserRound } from "lucide-react";
-import { STUDENT_ID_EXAMPLE, studentProfileSchema, YEAR_LEVELS } from "@/lib/schemas";
-import { createClient } from "@/lib/supabase/client";
+import { AlertTriangle, ChevronDown, ShieldCheck, UserRound } from "lucide-react";
+import { STUDENT_ID_EXAMPLE, studentDetailsSchema, YEAR_LEVELS, type StudentDetailsInput } from "@/lib/schemas";
+import { GoogleButtonFace, googleButtonClass, startGoogleSignIn, useResetOnPageShow } from "@/components/GoogleSignInButton";
 
-const formSchema = studentProfileSchema
-  .extend({ confirmPassword: z.string().min(1, "Re-enter your password") })
-  .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords don't match" });
-type FormValues = z.input<typeof formSchema>;
+type FormValues = StudentDetailsInput;
 
 function Field({ id, label, hint, error, children }: { id: string; label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
@@ -29,55 +24,61 @@ function Field({ id, label, hint, error, children }: { id: string; label: string
   );
 }
 
-export default function SignupForm({ event }: { event?: { id: string; name: string } | null }) {
-  const router = useRouter();
-  const [show, setShow] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"idle" | "signing-in">("idle");
+export default function SignupForm({
+  event,
+  initial = null,
+  initialError = null,
+}: {
+  event?: { id: string; name: string } | null;
+  /** Details from an unfinished attempt (e.g. the student cancelled Google), so nothing has to be retyped. */
+  initial?: FormValues | null;
+  initialError?: string | null;
+}) {
+  const [formError, setFormError] = useState<string | null>(initialError);
+  const [redirecting, setRedirecting] = useState(false);
+  useResetOnPageShow(useCallback(() => setRedirecting(false), []));
   const {
     register,
     handleSubmit,
     setError,
     setFocus,
-    trigger,
-    formState: { errors, isSubmitting, touchedFields },
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(studentDetailsSchema),
     mode: "onTouched",
-    defaultValues: { department: "College of Nursing and Pharmacy", consent: true },
+    defaultValues: initial ?? { department: "College of Nursing and Pharmacy", consent: true },
   });
+
+  function showFormError(msg: string) {
+    setFormError(msg);
+    requestAnimationFrame(() => document.getElementById("signup-error")?.focus());
+  }
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
     try {
+      // Step 1: the server checks and holds the details; step 2: Google creates the account, then the callback saves them.
       const res = await fetch("/api/student/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, confirmPassword: undefined, eventId: event?.id }),
+        body: JSON.stringify({ ...values, eventId: event?.id }),
       });
       const json = await res.json();
       if (!json.ok) {
         const fields = (json.error?.fields ?? {}) as Record<string, string[]>;
         const names = Object.keys(fields);
         for (const name of names) setError(name as keyof FormValues, { message: fields[name][0] });
-        setFormError(json.error?.message ?? "Couldn't create your account. Please try again.");
-        if (names[0]) setFocus(names[0] as keyof FormValues);
-        else requestAnimationFrame(() => document.getElementById("signup-error")?.focus());
+        if (names[0]) {
+          setFormError(json.error?.message ?? "Please check the highlighted fields.");
+          setFocus(names[0] as keyof FormValues);
+        } else showFormError(json.error?.message ?? "Couldn't continue. Please try again.");
         return;
       }
-      setPhase("signing-in");
-      const { error } = await createClient().auth.signInWithPassword({ email: String(values.email).trim(), password: String(values.password) });
-      if (error) {
-        router.push("/student/login?created=1");
-        return;
-      }
-      const reg = json.data.registration as { ok: boolean; referenceCode?: string; message?: string } | null;
-      const qs = reg?.ok ? `registered=${encodeURIComponent(reg.referenceCode!)}` : reg ? `regError=${encodeURIComponent(reg.message ?? "")}` : "welcome=1";
-      router.replace(`/me?${qs}`);
-      router.refresh();
+      setRedirecting(true);
+      await startGoogleSignIn({ from: "signup" });
     } catch {
-      setFormError("Can't reach the server. Check your connection and try again.");
-      requestAnimationFrame(() => document.getElementById("signup-error")?.focus());
+      setRedirecting(false);
+      showFormError("Can't reach the server. Check your connection and try again.");
     }
   }
 
@@ -85,7 +86,7 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
     "aria-invalid": errors[name] ? true : undefined,
     "aria-describedby": errors[name] || hasHint ? `${name}-msg` : undefined,
   });
-  const busy = isSubmitting || phase === "signing-in";
+  const busy = isSubmitting || redirecting;
 
   return (
     <form
@@ -131,37 +132,6 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         </Field>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-4 pt-4 border-t border-[#eef4f3]">
-        <legend className="font-bold text-ink flex items-center gap-2 mb-1">
-          <ShieldCheck className="w-[18px] h-[18px] text-brand-600" aria-hidden="true" /> Your account
-        </legend>
-        <Field id="email" label="Email address" hint="e.g. jdcruz.student@ua.edu.ph" error={errors.email?.message}>
-          <input id="email" type="email" {...register("email")} {...aria("email", true)} inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="input bg-[#f3f7f6]" placeholder="initialssurname.student@ua.edu.ph" />
-        </Field>
-        <Field id="password" label="Password" hint="At least 8 characters, with a letter and a number" error={errors.password?.message}>
-          <div className="relative">
-            <input
-              id="password"
-              type={show ? "text" : "password"}
-              {...register("password", {
-                onChange: () => {
-                  if (touchedFields.confirmPassword) void trigger("confirmPassword");
-                },
-              })}
-              {...aria("password", true)}
-              autoComplete="new-password"
-              maxLength={72}
-              className="input bg-[#f3f7f6] pr-14"
-            />
-            <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide passwords" : "Show passwords"} aria-pressed={show} className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl flex items-center justify-center text-[#4b6362] hover:bg-slate-100">
-              {show ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
-            </button>
-          </div>
-        </Field>
-        <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword?.message}>
-          <input id="confirmPassword" type={show ? "text" : "password"} {...register("confirmPassword")} {...aria("confirmPassword")} autoComplete="new-password" maxLength={72} className="input bg-[#f3f7f6]" />
-        </Field>
-      </fieldset>
 
       <div>
         <label htmlFor="consent" className="flex items-start gap-3 cursor-pointer rounded-[14px] border border-[#dce7e5] bg-[#f3f7f6] p-3.5">
@@ -187,9 +157,15 @@ export default function SignupForm({ event }: { event?: { id: string; name: stri
         </div>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary btn-lg w-full">
-        {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Registering…</> : phase === "signing-in" ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Opening your dashboard…</> : "Register"}
-      </button>
+      <div className="flex flex-col gap-2.5 pt-4 border-t border-[#eef4f3]">
+        <p className="flex items-start gap-2.5 text-base leading-snug font-medium text-[#23403f]">
+          <ShieldCheck className="w-5 h-5 shrink-0 mt-px text-brand-600" aria-hidden="true" />
+          <span className="min-w-0 break-words">Next, sign in with your UA student Google account.</span>
+        </p>
+        <button type="submit" disabled={busy} aria-busy={busy} className={googleButtonClass}>
+          <GoogleButtonFace busy={busy} label={event ? "Register with Google" : "Continue with Google"} busyLabel={isSubmitting ? "Checking your details…" : "Opening Google…"} />
+        </button>
+      </div>
     </form>
   );
 }

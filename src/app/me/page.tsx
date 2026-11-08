@@ -6,6 +6,7 @@ import { requireStudentPage } from "@/lib/auth/session";
 import { getStudentDashboard, getStudentProfile, listOpenEventsForStudent, type StudentEventRecord } from "@/lib/services/students";
 import { formatInZone, formatTimeRange } from "@/lib/time";
 import { Logo } from "@/components/Brand";
+import SiteFooter from "@/components/SiteFooter";
 import { AutoRefresh, ClaimForm, GetQrButton, OpenPassButton, ProfileForm, QrImage, RefreshButton, SignOutButton, TimeOutPass } from "./StudentControls";
 import { openPass, quickRegisterAction } from "./actions";
 
@@ -208,7 +209,7 @@ export default async function StudentDashboardPage({
   const showingQr = current.some((r) => r.timeInToken || r.timeOut || (r.attendance?.time_in_at && !r.attendance.time_out_at));
 
   return (
-    <div className="min-h-dvh pb-[calc(2rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-dvh">
       <AutoRefresh fast={showingQr} />
       <header className="bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -230,7 +231,7 @@ export default async function StudentDashboardPage({
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 -mt-8 flex flex-col gap-5">
+      <main className="max-w-3xl mx-auto px-4 -mt-8 mb-12 flex flex-col gap-5">
         {registered && (
           <div role="status" className="card p-4 flex items-start gap-3 border-success-500/30 bg-success-50">
             <PartyPopper className="w-5 h-5 text-success-700 shrink-0 mt-0.5" aria-hidden="true" />
@@ -371,6 +372,7 @@ export default async function StudentDashboardPage({
           Times are recorded by the scanner and can&apos;t be edited by you. Keep your reference codes as proof of attendance.
         </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }

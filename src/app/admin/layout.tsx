@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionProfile } from "@/lib/auth/session";
 import { isStaffRole } from "@/lib/auth/permissions";
+import { usernameFromStaffEmail } from "@/lib/auth/staff-username";
 import AdminShell from "./AdminShell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -11,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <AdminShell
       displayName={profile.displayName}
-      email={profile.email}
+      email={usernameFromStaffEmail(profile.email) ?? profile.email}
       role={profile.role}
     >
       {children}

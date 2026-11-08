@@ -5,6 +5,7 @@ import { clsx } from "clsx";
 import { CalendarDays, ChevronLeft, Clock, MapPin, Building2, LogIn, LogOut, ClipboardEdit, QrCode, ScanLine } from "lucide-react";
 import { getPublishedEvent, countRegistrations } from "@/lib/services/events";
 import { effectiveStatus, formatInZone, formatTimeRange, registrationPhase, STATUS_BADGE, STATUS_LABEL, timeOutWindow, zoneAbbrev } from "@/lib/time";
+import SiteFooter from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function EventDetailPage({ params }: Props) {
             : "Registration is closed";
 
   return (
-    <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-dvh">
       <header className="sticky top-0 z-20 bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto h-14 px-2 flex items-center gap-1">
           <Link href="/#events" prefetch={true} aria-label="Back to events" className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/10">
@@ -93,7 +94,7 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
       </section>
 
-      <main className="max-w-3xl mx-auto px-4 -mt-5 flex flex-col gap-4 relative">
+      <main className="max-w-3xl mx-auto px-4 -mt-5 mb-12 flex flex-col gap-4 relative">
 
         {event.description && (
           <section className="card p-5" aria-labelledby="about">
@@ -136,6 +137,9 @@ export default async function EventDetailPage({ params }: Props) {
           </ol>
         </section>
       </main>
+
+      {/* Extra bottom padding keeps the footer clear of the fixed register bar. */}
+      <SiteFooter className="pb-[calc(6rem+env(safe-area-inset-bottom))]" />
 
       {/* Sticky action bar — always within thumb reach */}
       <div className="fixed inset-x-0 bottom-0 z-30 bg-white/95 backdrop-blur border-t border-[#dce7e5] pb-[env(safe-area-inset-bottom)]">

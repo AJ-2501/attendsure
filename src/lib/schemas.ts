@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeUsername, USERNAME_REGEX } from "@/lib/auth/staff-username";
 
 /** Collapse whitespace, trim, and title-case each word (keeps particles like "dela" lowercase-safe). */
 export function normalizeName(input: string): string {
@@ -271,14 +272,18 @@ export const roleSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 
-/** Email + password sign-in validation. */
+/** Staff username + password sign-in validation. */
 export const signInSchema = z.object({
-  email: z
+  username: z
     .string()
-    .trim()
-    .min(1, "Enter your email address.")
-    .email("Enter a valid email address.")
-    .max(254, "Email address is too long."),
+    .transform(normalizeUsername)
+    .pipe(
+      z
+        .string()
+        .min(1, "Enter your username.")
+        .max(32, "Username is too long.")
+        .regex(USERNAME_REGEX, "Use letters, numbers, dots, hyphens or underscores."),
+    ),
   password: z.string().min(1, "Enter your password.").max(72, "Password is too long."),
 });
 export type SignInInput = z.input<typeof signInSchema>;
@@ -373,3 +378,8 @@ export const studentProfileSchema = z.object({
   consent: z.literal(true, { message: "You must agree to the data privacy notice" }),
 });
 export type StudentProfileInput = z.input<typeof studentProfileSchema>;
+
+/** Student details collected before Google sign-in (the account itself comes from Google). */
+export const studentDetailsSchema = studentProfileSchema.omit({ email: true, password: true });
+export type StudentDetailsInput = z.input<typeof studentDetailsSchema>;
+export type StudentDetails = z.output<typeof studentDetailsSchema>;
