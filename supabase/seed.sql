@@ -2,13 +2,7 @@
 -- Usage: psql <connection-string> -f supabase/seed.sql
 --   or with Supabase CLI: supabase db reset (which runs migrations + seed)
 
--- Create a demo super-admin. Replace the UUID with the auth.users.id of your test user.
--- In Supabase: Dashboard → Authentication → Create User → copy the UUID.
--- The handle_new_user trigger already creates a 'student' profile;
--- this upsert promotes it to super_admin.
--- Uncomment and set your admin's email:
--- update public.profiles set role = 'super_admin', display_name = 'Dev Admin'
--- where auth_user_id = (select id from auth.users where email = 'admin@example.com');
+-- Admin account: run supabase/create_admin.sql (one username + password, signs in at /login).
 
 -- Demo event
 insert into public.events (

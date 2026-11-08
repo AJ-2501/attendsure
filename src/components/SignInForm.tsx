@@ -3,12 +3,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
+import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, UserRound } from "lucide-react";
 import { signInSchema, type SignInInput } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/client";
+import { INVALID_CREDENTIALS_MESSAGE, staffEmailFromUsername } from "@/lib/auth/staff-username";
 
 const STAFF_ROLES = ["super_admin", "event_admin", "scanner_staff"];
-const INVALID_CREDENTIALS_MESSAGE = "Incorrect email or password.";
 
 function friendlyError(message: string) {
   if (/invalid login|invalid credentials|email not confirmed|user not found/i.test(message)) {
@@ -28,14 +28,12 @@ export default function SignInForm({
   expect,
   redirectTo,
   next,
-  emailPlaceholder,
   initialError = null,
 }: {
   /** Which kind of account this page is for. Role mismatches return a generic credential error to prevent account enumeration. */
   expect: "student" | "staff";
   redirectTo: string;
   next?: string | null;
-  emailPlaceholder: string;
   initialError?: string | null;
 }) {
   const router = useRouter();
@@ -54,7 +52,7 @@ export default function SignInForm({
   } = useForm<SignInInput>({
     resolver: zodResolver(signInSchema),
     mode: "onTouched",
-    defaultValues: { email: "", password: "" },
+    defaultValues: { username: "", password: "" },
   });
 
   function showFormError(msg: string) {
@@ -67,7 +65,7 @@ export default function SignInForm({
     const supabase = createClient();
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: values.email.trim(),
+        email: staffEmailFromUsername(values.username),
         password: values.password,
       });
       if (error || !data.user) {
@@ -75,7 +73,7 @@ export default function SignInForm({
         return;
       }
       // Verify the account role matches this portal before navigating.
-      // Return a uniform "Incorrect email or password." on mismatch so credentials cannot be used to enumerate roles.
+      // Return a uniform "Incorrect username or password." on mismatch so credentials cannot be used to enumerate roles.
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -94,7 +92,7 @@ export default function SignInForm({
     }
   }
 
-  const emailField = register("email", {
+  const usernameField = register("username", {
     onChange: () => {
       if (formError) setFormError(null);
     },
@@ -115,27 +113,28 @@ export default function SignInForm({
       noValidate
     >
       <div>
-        <label className="label" htmlFor="email">Email address</label>
+        <label className="label" htmlFor="username">Username</label>
         <div className="relative">
-        <Mail className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a9391] pointer-events-none" aria-hidden="true" />
+        <UserRound className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a9391] pointer-events-none" aria-hidden="true" />
         <input
-          id="email"
-          type="email"
-          inputMode="email"
-          autoComplete="email"
+          id="username"
+          type="text"
+          autoComplete="username"
           autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
-          maxLength={254}
-          {...emailField}
-          aria-invalid={errors.email ? true : undefined}
-          aria-describedby={errors.email ? "email-err" : undefined}
+          enterKeyHint="next"
+          maxLength={32}
+          {...usernameField}
+          aria-invalid={errors.username ? true : undefined}
+          aria-describedby={errors.username ? "username-err" : undefined}
           className="input bg-[#f3f7f6] pl-11 focus:bg-white"
-          placeholder={emailPlaceholder}
+          placeholder="Enter your username"
         />
         </div>
-        {errors.email?.message && (
-          <p id="email-err" className="field-error flex items-center gap-1.5" role="alert">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.email.message}
+        {errors.username?.message && (
+          <p id="username-err" className="field-error flex items-center gap-1.5" role="alert">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> {errors.username.message}
           </p>
         )}
       </div>
@@ -147,6 +146,7 @@ export default function SignInForm({
             id="password"
             type={show ? "text" : "password"}
             autoComplete="current-password"
+            enterKeyHint="go"
             maxLength={72}
             {...passwordField}
             aria-invalid={errors.password ? true : undefined}

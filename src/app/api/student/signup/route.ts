@@ -1,39 +1,28 @@
 import { type NextRequest } from "next/server";
+import { cookies } from "next/headers";
 import { ok, fail, handle, clientIp } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { registerFromProfile, signUpStudent } from "@/lib/services/students";
+import { studentDetailsSchema } from "@/lib/schemas";
+import { PENDING_SIGNUP_COOKIE, pendingCookieOptions, sealPendingSignup } from "@/lib/auth/pending-signup";
 
 export const runtime = "nodejs";
 
 /**
- * Student sign-up: details + credentials, no event needed.
- * If `eventId` is given (came from an event's Register button), also registers for it.
+ * Student sign-up, step 1: validate the student's details and hold them (sealed, httpOnly cookie)
+ * while the browser goes to Google. `/auth/callback` saves them to the new account.
+ * If `eventId` is given (came from an event's Register button), the callback also registers for it.
  */
 export const POST = handle("student-signup", async (req: NextRequest) => {
   const allowed = await checkRateLimit("studentSignup", clientIp(req), true);
   if (!allowed) return fail(429, "RATE_LIMITED", "Too many attempts. Please wait 15 minutes and try again.");
 
   const body = (await req.json()) as Record<string, unknown>;
-  const result = await signUpStudent(body);
-  if (!result.ok) {
-    switch (result.code) {
-      case "VALIDATION_ERROR":
-        return fail(422, result.code, "Please check the highlighted fields.", result.fields);
-      case "EMAIL_TAKEN":
-        return fail(409, result.code, "That email already has an account. Sign in instead.", { email: ["Already has an account — sign in instead"] });
-      case "NOT_MIGRATED":
-        return fail(503, result.code, "Student sign-up isn't enabled yet. An administrator needs to run supabase/APPLY_ATTENDSURE_UPDATES.sql in the Supabase SQL Editor.");
-      default:
-        return fail(500, result.code, "Couldn't create your account. Please try again.");
-    }
+  const parsed = studentDetailsSchema.safeParse(body);
+  if (!parsed.success) {
+    return fail(422, "VALIDATION_ERROR", "Please check the highlighted fields.", parsed.error.flatten().fieldErrors as Record<string, string[]>);
   }
-
-  // Optional: register for the event the student came from. Failure here doesn't undo the account.
-  let registration: { ok: boolean; referenceCode?: string; message?: string } | null = null;
   const eventId = typeof body.eventId === "string" && /^[0-9a-f-]{36}$/i.test(body.eventId) ? body.eventId : null;
-  if (eventId) {
-    const r = await registerFromProfile(result.profileId, typeof body.email === "string" ? body.email.trim().toLowerCase() : null, eventId);
-    registration = r.ok ? { ok: true, referenceCode: r.referenceCode } : { ok: false, message: r.message };
-  }
-  return ok({ created: true, registration }, 201);
+
+  (await cookies()).set(PENDING_SIGNUP_COOKIE, sealPendingSignup({ details: parsed.data, eventId }), pendingCookieOptions);
+  return ok({ pending: true });
 });

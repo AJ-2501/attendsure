@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import AuthShell from "@/components/AuthShell";
 import { getSessionProfile } from "@/lib/auth/session";
+import { googleAuthError } from "@/lib/auth/google";
+import { openPendingSignup, PENDING_SIGNUP_COOKIE } from "@/lib/auth/pending-signup";
 import { isStaffRole } from "@/lib/auth/permissions";
 import { getPublishedEvent } from "@/lib/services/events";
 import { registrationPhase } from "@/lib/time";
@@ -11,17 +14,19 @@ import SignupForm from "./SignupForm";
 export const metadata: Metadata = { title: "Register", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-export default async function StudentSignupPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
-  const { event: eventId } = await searchParams;
-  const [session, ev] = await Promise.all([getSessionProfile(), eventId ? getPublishedEvent(eventId) : null]);
+export default async function StudentSignupPage({ searchParams }: { searchParams: Promise<{ event?: string; error?: string }> }) {
+  const { event: eventId, error } = await searchParams;
+  const [session, ev, cookieStore] = await Promise.all([getSessionProfile(), eventId ? getPublishedEvent(eventId) : null, cookies()]);
   if (session && !isStaffRole(session.role)) redirect(eventId ? `/me?register=${encodeURIComponent(eventId)}` : "/me");
 
   const event = ev && registrationPhase(ev) === "open" ? { id: ev.id, name: ev.name } : null;
+  // Coming back from Google without finishing (cancelled, wrong account): keep what was typed.
+  const pending = openPendingSignup(cookieStore.get(PENDING_SIGNUP_COOKIE)?.value);
   const loginHref = `/student/login${event ? `?next=${encodeURIComponent(`/me?register=${event.id}`)}` : ""}`;
 
   return (
     <AuthShell role="student" title={event ? `Register: ${event.name}` : "Student registration"} subtitle="Sign up once. Get a QR pass for any event with one tap.">
-      <SignupForm event={event} />
+      <SignupForm key={error ?? "form"} event={event} initial={pending?.details ?? null} initialError={googleAuthError(error)} />
       <p className="text-[13px] text-center text-[#4b6362]">
         Already have an account?{" "}
         <Link href={loginHref} className="inline-block py-3 -my-3 px-1 -mx-1 font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2">Sign in</Link>

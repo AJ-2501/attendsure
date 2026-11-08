@@ -69,22 +69,18 @@ describe("Registration schema", () => {
 });
 
 describe("Sign-in schema", () => {
-  it("accepts valid email and password", () => {
-    const r = signInSchema.safeParse({ email: " student@nursing.edu.ph ", password: "secret" });
+  it("accepts a username and password, normalizing the username", () => {
+    const r = signInSchema.safeParse({ username: "  Admin ", password: "secret" });
     expect(r.success).toBe(true);
-    expect(r.data?.email).toBe("student@nursing.edu.ph");
+    expect(r.data?.username).toBe("admin");
   });
 
-  it("rejects empty or invalid email and empty password", () => {
-    expect(signInSchema.safeParse({ email: "", password: "secret" }).error?.flatten().fieldErrors.email?.[0]).toBe(
-      "Enter your email address.",
+  it("rejects an empty or malformed username and an empty password", () => {
+    expect(signInSchema.safeParse({ username: "", password: "secret" }).error?.flatten().fieldErrors.username?.[0]).toBe("Enter your username.");
+    expect(signInSchema.safeParse({ username: "admin@ua.edu.ph", password: "secret" }).error?.flatten().fieldErrors.username?.[0]).toMatch(
+      /letters, numbers/,
     );
-    expect(signInSchema.safeParse({ email: "not-an-email", password: "secret" }).error?.flatten().fieldErrors.email?.[0]).toMatch(
-      /Enter a valid email/,
-    );
-    expect(signInSchema.safeParse({ email: "student@nursing.edu.ph", password: "" }).error?.flatten().fieldErrors.password?.[0]).toBe(
-      "Enter your password.",
-    );
+    expect(signInSchema.safeParse({ username: "admin", password: "" }).error?.flatten().fieldErrors.password?.[0]).toBe("Enter your password.");
   });
 });
 

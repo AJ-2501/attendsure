@@ -5,7 +5,8 @@
 -- file -> Run. Safe to run more than once. Runs as one transaction: if anything
 -- fails, nothing is changed.
 --
--- Contains, in order: 20261019000003, 20261019000004, 20261019000005, 20261108000006, 20261108000007.
+-- Contains, in order: 20261019000003, 20261019000004, 20261019000005, 20261108000006, 20261108000007,
+-- 20261108000008.
 -- =============================================================================
 begin;
 
@@ -177,6 +178,29 @@ update public.events
        required_fields = coalesce(required_fields, '{}'::jsonb) || '{"email": true}'::jsonb
  where student_id_pattern is distinct from '^[0-9]{10}$'
     or coalesce((required_fields ->> 'email')::boolean, false) = false;
+
+-- ----------------------------------------------------------------------------
+-- 20261108000008_google_display_name.sql
+-- ----------------------------------------------------------------------------
+-- Google sign-in sends the name as full_name / name (not display_name): use it for new students'
+-- display name instead of falling back to the email's local part.
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (auth_user_id, display_name, role)
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data->>'display_name',
+      new.raw_user_meta_data->>'full_name',
+      new.raw_user_meta_data->>'name',
+      split_part(new.email, '@', 1)
+    ),
+    'student'
+  )
+  on conflict (auth_user_id) do nothing;
+  return new;
+end $$;
 
 -- Make the API pick up the new columns and functions immediately.
 notify pgrst, 'reload schema';
