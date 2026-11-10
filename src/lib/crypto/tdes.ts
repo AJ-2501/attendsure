@@ -71,11 +71,6 @@ export function loadTdesKeys(): Keys {
   return cached;
 }
 
-/** For tests only. */
-export function __resetKeyCache() {
-  cached = null;
-}
-
 const b64u = (b: Buffer) => b.toString("base64url");
 
 function mac(key: Buffer, iv: Buffer, ct: Buffer, context: string) {

@@ -3,7 +3,7 @@ import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/server";
 import { FIELD, tdesDecrypt, tdesEncrypt } from "@/lib/crypto/tdes";
 import { deriveQrToken, newAccessToken, studentIdDigest } from "@/lib/crypto/tokens";
-import { normalizeStudentId, studentDetailsSchema, studentSignupSchema, type StudentDetails } from "@/lib/schemas";
+import { normalizeStudentId, studentDetailsSchema, type StudentDetails } from "@/lib/schemas";
 import { registerParticipant } from "@/lib/services/registrations";
 import { listPublishedEvents } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase, timeOutWindow } from "@/lib/time";
@@ -76,29 +76,6 @@ async function findProvenRegistration(studentId: string, referenceCode: string) 
     .eq("student_id_lookup_digest", digest)
     .maybeSingle<Pick<RegistrationRow, "id" | "participant_name_encrypted"> & { linked_profile_id: string | null }>();
   return data ? { ...data, digest } : null;
-}
-
-export type SignupResult =
-  | { ok: true }
-  | { ok: false; code: "VALIDATION_ERROR"; fields: Record<string, string[]> }
-  | { ok: false; code: "INVALID_PROOF" | "ALREADY_CLAIMED" | "EMAIL_TAKEN" | "ERROR" };
-
-/** Account for a student who registered earlier without one: proven with that registration's reference code. */
-export async function createStudentAccount(raw: unknown): Promise<SignupResult> {
-  const parsed = studentSignupSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
-  const { email, password, studentId, referenceCode } = parsed.data;
-
-  const reg = await findProvenRegistration(studentId, referenceCode);
-  if (!reg) return { ok: false, code: "INVALID_PROOF" };
-  if (reg.linked_profile_id) return { ok: false, code: "ALREADY_CLAIMED" };
-
-  let name: string | null = null;
-  try { name = tdesDecrypt(reg.participant_name_encrypted, FIELD.name); } catch {}
-  const account = await createStudentUser(email, password, name);
-  if (!account.ok) return { ok: false, code: account.code };
-  await linkRegistration(account.profileId, reg.id, reg.digest);
-  return { ok: true };
 }
 
 export type ClaimResult = { ok: true } | { ok: false; code: "INVALID_PROOF" | "ALREADY_CLAIMED" | "OTHER_STUDENT" };

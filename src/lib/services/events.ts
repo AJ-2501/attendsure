@@ -35,12 +35,6 @@ export const getEventById = cache(async (id: string): Promise<EventRow | null> =
   return data;
 });
 
-export const getEventBySlug = cache(async (slug: string): Promise<EventRow | null> => {
-  const db = createAdminClient();
-  const { data } = await db.from("events").select("*").eq("slug", slug).maybeSingle<EventRow>();
-  return data;
-});
-
 export async function createEvent(parsed: EventParsed, profileId: string): Promise<EventRow> {
   const db = createAdminClient();
   const { data, error } = await db

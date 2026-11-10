@@ -14,14 +14,6 @@ export function effectiveStatus(
   return "upcoming";
 }
 
-export function isRegistrationOpen(
-  e: Pick<EventRow, "status" | "registration_opens_at" | "registration_closes_at">,
-  now: Date = new Date(),
-) {
-  const t = now.getTime();
-  return e.status === "published" && t >= Date.parse(e.registration_opens_at) && t < Date.parse(e.registration_closes_at);
-}
-
 export function timeOutWindow(e: Pick<EventRow, "starts_at" | "ends_at" | "time_out_opens_at" | "time_out_closes_at">) {
   return {
     opens: e.time_out_opens_at ?? e.starts_at,

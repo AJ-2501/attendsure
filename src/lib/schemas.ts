@@ -191,10 +191,6 @@ export const decryptSchema = z.object({
   reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
 });
 
-export const reasonSchema = z.object({
-  reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
-});
-
 export const reissueSchema = z.object({
   registrationId: z.string().uuid(),
   action: attendanceActionSchema,
@@ -261,23 +257,6 @@ export const eventSchema = z
   });
 export type EventInput = z.input<typeof eventSchema>;
 export type EventParsed = z.output<typeof eventSchema>;
-
-export const participantQuerySchema = z.object({
-  eventId: z.string().uuid().optional(),
-  q: z.string().trim().max(60).optional(),
-  section: z.string().trim().max(40).optional(),
-  status: z.enum(["absent", "checked_in", "completed", "cancelled"]).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(5).max(100).default(25),
-  sort: z.enum(["registered_at", "section"]).default("registered_at"),
-  dir: z.enum(["asc", "desc"]).default("desc"),
-});
-
-export const roleSchema = z.object({
-  profileId: z.string().uuid(),
-  role: z.enum(["super_admin", "event_admin", "scanner_staff", "student"]),
-  reason: z.string().trim().min(5).max(500),
-});
 
 /** Staff username + password sign-in validation. */
 export const signInSchema = z.object({
