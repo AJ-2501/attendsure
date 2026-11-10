@@ -181,6 +181,13 @@ export const decryptSchema = z.object({
     .array(z.string().trim().max(4096).regex(ENVELOPE_PATTERN, "Not an AttendSure encrypted value"))
     .min(1, "Add at least one encrypted value")
     .max(DECRYPT_BATCH_MAX, `Decrypt at most ${DECRYPT_BATCH_MAX} values at a time`),
+  decryptedBy: z
+    .string()
+    .trim()
+    .min(2, "Enter your full name")
+    .max(80, "Name is too long (max 80 characters)")
+    .regex(/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u, "Use letters, spaces, periods, apostrophes or hyphens only")
+    .transform((s) => s.replace(/\s+/g, " ")),
   reason: z.string().trim().min(5, "Provide a reason (min 5 characters)").max(500),
 });
 
