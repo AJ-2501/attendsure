@@ -71,7 +71,7 @@ export default async function EventDetailPage({ params }: Props) {
             : "Registration is closed";
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-20 bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto h-14 px-2 flex items-center gap-1">
           <Link href="/#events" prefetch={true} aria-label="Back to events" className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-white/10">
@@ -94,7 +94,7 @@ export default async function EventDetailPage({ params }: Props) {
         </div>
       </section>
 
-      <main className="max-w-3xl mx-auto px-4 -mt-5 mb-12 flex flex-col gap-4 relative">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 -mt-5 mb-12 flex flex-col gap-4 relative">
 
         {event.description && (
           <section className="card p-5" aria-labelledby="about">

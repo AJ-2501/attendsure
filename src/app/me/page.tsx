@@ -209,7 +209,7 @@ export default async function StudentDashboardPage({
   const showingQr = current.some((r) => r.timeInToken || r.timeOut || (r.attendance?.time_in_at && !r.attendance.time_out_at));
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh flex flex-col">
       <AutoRefresh fast={showingQr} />
       <header className="bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -231,7 +231,8 @@ export default async function StudentDashboardPage({
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 -mt-8 mb-12 flex flex-col gap-5">
+      {/* flex-1 fills short pages so the footer sits at the bottom of the screen, not mid-page. */}
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 -mt-8 mb-12 flex flex-col gap-5">
         {registered && (
           <div role="status" className="card p-4 flex items-start gap-3 border-success-500/30 bg-success-50">
             <PartyPopper className="w-5 h-5 text-success-700 shrink-0 mt-0.5" aria-hidden="true" />
