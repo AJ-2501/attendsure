@@ -31,7 +31,7 @@ export default async function HomePage() {
   const openCount = items.filter((i) => i.regPhase === "open" && i.status !== "completed").length;
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh flex flex-col">
       <header className="seal-hairline sticky top-0 z-20 bg-white/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Logo size="sm" />
@@ -116,7 +116,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-12 sm:pb-16">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-12 sm:pb-16">
         <div className="mb-5 flex flex-col gap-1">
           <p className="self-start text-xs font-bold tracking-[0.08em] uppercase text-gradient-seal-ink">Calendar</p>
           <h2 id="events" tabIndex={-1} className="scroll-mt-24 outline-none text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">Events</h2>
