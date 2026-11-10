@@ -189,8 +189,8 @@ export default async function StudentDashboardPage({
 }: {
   searchParams: Promise<{ error?: string; registered?: string; regError?: string; register?: string; welcome?: string }>;
 }) {
-  const student = await requireStudentPage();
-  const { error, registered, regError, register, welcome } = await searchParams;
+  const [student, { error, registered, regError, register, welcome }] = await Promise.all([requireStudentPage(), searchParams]);
+  // Independent reads in one parallel batch (indexed: registrations_linked_profile_idx, events_status_starts_idx, qr_registration_idx).
   const [data, profile, openEvents] = await Promise.all([
     getStudentDashboard(student.profileId),
     getStudentProfile(student.profileId),

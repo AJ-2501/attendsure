@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,10 +39,8 @@ export default function SignInForm({
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(initialError);
-
-  useEffect(() => {
-    router.prefetch(safeNext(next, redirectTo));
-  }, [router, next, redirectTo]);
+  // No prefetch of the destination here: fetched while signed out it would hold the sign-in redirect,
+  // and navigating onto it after signing in would need a second (refresh) render to correct.
 
   const {
     register,
@@ -74,19 +72,26 @@ export default function SignInForm({
       }
       // Verify the account role matches this portal before navigating.
       // Return a uniform "Incorrect username or password." on mismatch so credentials cannot be used to enumerate roles.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("auth_user_id", data.user.id)
-        .maybeSingle<{ role: string }>();
-      const isStaff = profile ? STAFF_ROLES.includes(profile.role) : null;
+      // The role is mirrored into app_metadata (not user-writable), so it arrives with the sign-in response;
+      // accounts not yet backfilled fall back to reading `profiles`. The server re-checks the role on every request.
+      let role = typeof data.user.app_metadata?.role === "string" ? data.user.app_metadata.role : null;
+      if (!role) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("auth_user_id", data.user.id)
+          .maybeSingle<{ role: string }>();
+        role = profile?.role ?? null;
+      }
+      const isStaff = role ? STAFF_ROLES.includes(role) : null;
       if (isStaff === null || isStaff !== (expect === "staff")) {
         await supabase.auth.signOut();
         showFormError(INVALID_CREDENTIALS_MESSAGE);
         return;
       }
+      // One navigation: it renders the destination with the new session cookies. Nothing for this
+      // route was cached while signed in, so no follow-up router.refresh() is needed.
       router.replace(safeNext(next, redirectTo));
-      router.refresh();
     } catch (err) {
       showFormError(friendlyError(err instanceof Error ? err.message : ""));
     }

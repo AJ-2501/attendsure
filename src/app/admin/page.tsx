@@ -38,22 +38,25 @@ function ProgressRing({ pct }: { pct: number }) {
 }
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
-  // Auth, the event list and (with ?event=) that event's stats all load in one parallel batch.
-  const [, { event: requestedId }, { events: allEvents }, requestedStats] = await Promise.all([
-    requirePagePermission("dashboard.view"),
-    searchParams,
-    listAllEvents(1, 100),
-    searchParams.then(({ event }) => (event && /^[0-9a-f-]{36}$/i.test(event) ? getEventStats(event) : undefined)),
-  ]);
-  const events = allEvents.slice(0, 10);
   const now = new Date();
-
-  // The chosen event (?event=), else the most relevant one (ongoing > open > newest).
-  const primary = allEvents.find((e) => e.id === requestedId)
-    ?? allEvents.find((e) => effectiveStatus(e, now) === "ongoing")
-    ?? allEvents.find((e) => effectiveStatus(e, now) === "open")
-    ?? allEvents[0];
-  const stats = !primary ? null : primary.id === requestedId && requestedStats !== undefined ? requestedStats : await getEventStats(primary.id);
+  // With ?event=, that event's stats load alongside the event list.
+  const requestedStatsP = searchParams.then(({ event }) => (event && /^[0-9a-f-]{36}$/i.test(event) ? getEventStats(event) : undefined));
+  // Event list → primary event → its stats runs as one chain alongside auth, so the dashboard costs
+  // max(auth, events + stats) instead of auth/events first and stats after. Nothing renders unless auth passes.
+  const dataP = Promise.all([searchParams, listAllEvents(1, 100)]).then(async ([{ event: requestedId }, { events: allEvents }]) => {
+    // The chosen event (?event=), else the most relevant one (ongoing > open > newest).
+    const primary = allEvents.find((e) => e.id === requestedId)
+      ?? allEvents.find((e) => effectiveStatus(e, now) === "ongoing")
+      ?? allEvents.find((e) => effectiveStatus(e, now) === "open")
+      ?? allEvents[0];
+    const requestedStats = primary?.id === requestedId ? await requestedStatsP : undefined;
+    const stats = !primary ? null : requestedStats !== undefined ? requestedStats : await getEventStats(primary.id);
+    return { allEvents, primary, stats };
+  });
+  // Unused when the chain doesn't need it; keep a rejection from going unhandled.
+  requestedStatsP.catch(() => undefined);
+  const [, { allEvents, primary, stats }] = await Promise.all([requirePagePermission("dashboard.view"), dataP]);
+  const events = allEvents.slice(0, 10);
   const pct = stats && stats.registered > 0 ? Math.round((stats.timed_in / stats.registered) * 100) : 0;
 
   return (
