@@ -21,7 +21,7 @@ export const POST = handle("records-decrypt", async (req: NextRequest) => {
     return fail(429, "RATE_LIMITED", "Too many decryption requests. Wait a minute and try again.");
   }
 
-  const { values, reason } = decryptSchema.parse(await req.json());
+  const { values, reason, decryptedBy } = decryptSchema.parse(await req.json());
   const results: DecryptResult[] = values.map((v) => tdesDecryptAnyField(v));
   const decrypted = results.filter(Boolean).length;
 
@@ -29,7 +29,8 @@ export const POST = handle("records-decrypt", async (req: NextRequest) => {
     actor_user_id: staff.profileId,
     action: "records.decrypt",
     reason,
-    metadata: { requested: values.length, decrypted, failed: values.length - decrypted },
+    // The signed-in account is in actor_user_id; decrypted_by is the person at the keyboard (admin accounts may be shared).
+    metadata: { requested: values.length, decrypted, failed: values.length - decrypted, decrypted_by: decryptedBy },
   });
   // Refuse to release plaintext if the access could not be recorded.
   if (error) {

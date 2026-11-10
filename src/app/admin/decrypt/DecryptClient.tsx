@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import { AlertTriangle, Check, ClipboardPaste, Copy, Download, Eye, EyeOff, FileSpreadsheet, KeyRound, Loader2, ShieldCheck, Upload, X } from "lucide-react";
 import { DECRYPT_BATCH_MAX, ENVELOPE_PATTERN } from "@/lib/schemas";
@@ -22,6 +23,22 @@ const PREVIEW_ROWS = 50;
 /** Keeps the first column (reference code) in view while a wide CSV preview scrolls sideways. */
 const STICKY_COL = "sticky left-0 z-[1] bg-white shadow-[1px_0_0_#eef4f3]";
 const ENVELOPE_GLOBAL = new RegExp(ENVELOPE_PATTERN.source.slice(1, -1), "g");
+/** Per-tab only: admin accounts can be shared, so the name must not carry over to the next person on this device. */
+const NAME_STORAGE_KEY = "attendsure.decryptedBy";
+const NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u;
+
+const noopSubscribe = () => () => {};
+function readSavedName() {
+  try { return sessionStorage.getItem(NAME_STORAGE_KEY) ?? ""; } catch { return ""; }
+}
+
+function validateName(raw: string): string | null {
+  const name = raw.trim();
+  if (name.length < 2) return "Enter your full name so this decryption is attributed to you.";
+  if (name.length > 80) return "Name is too long (max 80 characters).";
+  if (!NAME_PATTERN.test(name)) return "Use letters, spaces, periods, apostrophes or hyphens only.";
+  return null;
+}
 
 /** Minimal RFC 4180 parser: quoted fields, escaped quotes, CRLF/LF. */
 function parseCsv(text: string): string[][] {
@@ -52,8 +69,14 @@ const shorten = (s: string) => (s.length > 22 ? `${s.slice(0, 12)}…${s.slice(-
 const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
 export default function DecryptClient() {
-  const ids = { reason: useId(), paste: useId(), file: useId() };
+  const router = useRouter();
+  const ids = { name: useId(), reason: useId(), paste: useId(), file: useId() };
   const [mode, setMode] = useState<Mode>("csv");
+  // Prefill with the name typed earlier in this tab so repeat decryptions don't need retyping.
+  const savedName = useSyncExternalStore(noopSubscribe, readSavedName, () => "");
+  const [typedName, setName] = useState<string | null>(null);
+  const name = typedName ?? savedName;
+  const [nameError, setNameError] = useState<string | null>(null);
   const [file, setFile] = useState<{ name: string; rows: string[][] } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -117,12 +140,16 @@ export default function DecryptClient() {
   async function decrypt(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (reason.trim().length < 5) {
-      setReasonError("Say why you need this data (at least 5 characters).");
-      document.getElementById(ids.reason)?.focus();
+    const nameMsg = validateName(name);
+    const reasonMsg = reason.trim().length < 5 ? "Say why you need this data (at least 5 characters)." : null;
+    setNameError(nameMsg);
+    setReasonError(reasonMsg);
+    if (nameMsg || reasonMsg) {
+      document.getElementById(nameMsg ? ids.name : ids.reason)?.focus();
       return;
     }
     if (envelopes.length === 0) return;
+    const decryptedBy = name.trim().replace(/\s+/g, " ");
 
     const out = new Map<string, Result>();
     setProgress({ done: 0, total: envelopes.length });
@@ -132,23 +159,27 @@ export default function DecryptClient() {
         const res = await fetch("/api/records/decrypt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ values: batch, reason: reason.trim() }),
+          body: JSON.stringify({ values: batch, decryptedBy, reason: reason.trim() }),
           cache: "no-store",
         });
         const json = await res.json();
         if (!json.ok) {
-          const reasonMsg = json.error?.fields?.reason?.[0];
-          if (reasonMsg) {
-            setReasonError(reasonMsg);
-            document.getElementById(ids.reason)?.focus();
+          const serverName = json.error?.fields?.decryptedBy?.[0];
+          const serverReason = json.error?.fields?.reason?.[0];
+          if (serverName || serverReason) {
+            setNameError(serverName ?? null);
+            setReasonError(serverReason ?? null);
+            document.getElementById(serverName ? ids.name : ids.reason)?.focus();
           } else setFormError(json.error?.message ?? "Decryption failed. Try again.");
           return;
         }
         (json.data.results as Result[]).forEach((r, j) => out.set(batch[j], r));
         setProgress({ done: Math.min(i + batch.length, envelopes.length), total: envelopes.length });
       }
+      try { sessionStorage.setItem(NAME_STORAGE_KEY, decryptedBy); } catch { /* non-essential */ }
       setResults(out);
       setRevealed(true);
+      router.refresh(); // pull this run into "Recent decryptions"
       setExpiresAt(Date.now() + AUTO_CLEAR_MS);
       setNow(Date.now());
       requestAnimationFrame(() => resultsRef.current?.focus());
@@ -290,22 +321,52 @@ export default function DecryptClient() {
           {fileError && mode === "csv" && <p id={`${ids.file}-err`} className="field-error" role="alert">{fileError}</p>}
         </fieldset>
 
-        {/* Reason */}
-        <div>
-          <label htmlFor={ids.reason} className="label">2. Reason for access</label>
-          <input
-            id={ids.reason}
-            value={reason}
-            onChange={(e) => { setReason(e.target.value); if (reasonError) setReasonError(null); }}
-            maxLength={500}
-            placeholder="e.g. Verifying attendance for Dean's office report"
-            className="input"
-            aria-invalid={!!reasonError}
-            aria-describedby={`${ids.reason}-hint${reasonError ? ` ${ids.reason}-err` : ""}`}
-          />
-          {reasonError
-            ? <p id={`${ids.reason}-err`} className="field-error" role="alert">{reasonError}</p>
-            : <p id={`${ids.reason}-hint`} className="text-xs text-[#4b6362] mt-1">Saved to the audit log with your name, as required by the Data Privacy Act of 2012.</p>}
+        {/* Accountability: who is decrypting and why */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <label htmlFor={ids.name} className="label">
+              2. Your full name <span className="text-danger-600" aria-hidden="true">*</span>
+            </label>
+            <input
+              id={ids.name}
+              value={name}
+              onChange={(e) => { setName(e.target.value); if (nameError) setNameError(null); }}
+              onBlur={() => { if (name.trim()) setNameError(validateName(name)); }}
+              maxLength={80}
+              required
+              autoComplete="name"
+              autoCapitalize="words"
+              spellCheck={false}
+              enterKeyHint="next"
+              placeholder="e.g. Juan Dela Cruz"
+              className="input text-base sm:text-sm"
+              aria-invalid={!!nameError}
+              aria-describedby={`${ids.name}-hint${nameError ? ` ${ids.name}-err` : ""}`}
+            />
+            {nameError
+              ? <p id={`${ids.name}-err`} className="field-error" role="alert">{nameError}</p>
+              : <p id={`${ids.name}-hint`} className="text-xs text-[#4b6362] mt-1">Shown in Recent decryptions. Remembered in this tab only.</p>}
+          </div>
+          <div className="min-w-0">
+            <label htmlFor={ids.reason} className="label">
+              3. Reason for access <span className="text-danger-600" aria-hidden="true">*</span>
+            </label>
+            <input
+              id={ids.reason}
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); if (reasonError) setReasonError(null); }}
+              maxLength={500}
+              required
+              enterKeyHint="go"
+              placeholder="e.g. Verifying attendance for Dean's office report"
+              className="input text-base sm:text-sm"
+              aria-invalid={!!reasonError}
+              aria-describedby={`${ids.reason}-hint${reasonError ? ` ${ids.reason}-err` : ""}`}
+            />
+            {reasonError
+              ? <p id={`${ids.reason}-err`} className="field-error" role="alert">{reasonError}</p>
+              : <p id={`${ids.reason}-hint`} className="text-xs text-[#4b6362] mt-1">Saved to the audit log with your name, as required by the Data Privacy Act of 2012.</p>}
+          </div>
         </div>
 
         {formError && (

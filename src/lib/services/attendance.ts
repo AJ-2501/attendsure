@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { hashScannedToken } from "@/lib/crypto/tokens";
-import type { EventStats, ScanAttemptRow } from "@/lib/types";
+import type { EventStats } from "@/lib/types";
 
 export type ScanResult = {
   code: string;
@@ -98,34 +98,11 @@ export async function correctAttendance(
   return data as { ok: boolean; code: string };
 }
 
-export async function cancelRegistration(registrationId: string, actor: string, reason: string) {
-  const db = createAdminClient();
-  const { data, error } = await db.rpc("cancel_registration", {
-    p_registration_id: registrationId,
-    p_actor: actor,
-    p_reason: reason,
-  } as never);
-  if (error) throw error;
-  return data as { ok: boolean; code: string };
-}
-
 export async function getEventStats(eventId: string): Promise<EventStats | null> {
   const db = createAdminClient();
   const { data, error } = await db.rpc("event_stats", { p_event_id: eventId } as never);
   if (error) return null;
   return data as EventStats;
-}
-
-export async function getRecentScans(eventId: string, limit = 20): Promise<ScanAttemptRow[]> {
-  const db = createAdminClient();
-  const { data } = await db
-    .from("scan_attempts")
-    .select("*")
-    .eq("event_id", eventId)
-    .order("created_at", { ascending: false })
-    .limit(limit)
-    .returns<ScanAttemptRow[]>();
-  return data ?? [];
 }
 
 export async function getSectionBreakdown(eventId: string, dimension: "section" | "year_level" | "department") {
