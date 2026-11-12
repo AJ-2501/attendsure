@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { hashScannedToken } from "@/lib/crypto/tokens";
 import type { EventStats } from "@/lib/types";
+import { getEventById } from "@/lib/services/events";
+import { formatCsvDateTime } from "@/lib/time";
 
 export type ScanResult = {
   code: string;
@@ -129,20 +131,25 @@ export async function getAuditLog(eventId: string, page = 1, pageSize = 25) {
  */
 export async function exportAttendanceCsv(eventId: string): Promise<string> {
   const db = createAdminClient();
-  const { data } = await db
-    .from("registrations")
-    .select("id, reference_code, participant_name_encrypted, student_id_encrypted, section, year_level, department, registration_status, registered_at, attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status)")
-    .eq("event_id", eventId)
-    .order("registered_at");
+  const [{ data }, event] = await Promise.all([
+    db
+      .from("registrations")
+      .select("id, reference_code, participant_name_encrypted, student_id_encrypted, section, year_level, department, registration_status, registered_at, attendance_records(time_in_at, time_out_at, time_in_ref, time_out_ref, status)")
+      .eq("event_id", eventId)
+      .order("registered_at"),
+    getEventById(eventId),
+  ]);
   if (!data) return "";
+  const tz = event?.timezone ?? "Asia/Manila";
+  const fmt = (iso: string | null | undefined) => formatCsvDateTime(iso, tz);
   const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const header = "reference_code,name_encrypted,student_id_encrypted,section,year_level,department,registration_status,time_in_at,time_in_ref,time_out_at,time_out_ref,attendance_status,registered_at";
   const rows = data.map((r) => {
     const att = Array.isArray(r.attendance_records) ? r.attendance_records[0] : r.attendance_records;
     return [
       r.reference_code, r.participant_name_encrypted, r.student_id_encrypted, r.section, r.year_level ?? "", r.department ?? "",
-      r.registration_status, att?.time_in_at ?? "", att?.time_in_ref ?? "",
-      att?.time_out_at ?? "", att?.time_out_ref ?? "", att?.status ?? "", r.registered_at,
+      r.registration_status, fmt(att?.time_in_at), att?.time_in_ref ?? "",
+      fmt(att?.time_out_at), att?.time_out_ref ?? "", att?.status ?? "", fmt(r.registered_at),
     ].map(String).map(escape).join(",");
   });
   return [header, ...rows].join("\r\n");
