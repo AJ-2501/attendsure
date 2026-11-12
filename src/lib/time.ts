@@ -47,6 +47,25 @@ export function formatInZone(iso: string | null | undefined, timeZone: string, o
   return new Intl.DateTimeFormat("en-PH", { timeZone, ...o }).format(new Date(iso));
 }
 
+/** "11/12/2026 9:05AM" in the given zone, for CSV exports. Empty string for missing values. */
+export function formatCsvDateTime(iso: string | null | undefined, timeZone: string) {
+  if (!iso) return "";
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour12: true,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+      .formatToParts(new Date(iso))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.month}/${p.day}/${p.year} ${p.hour}:${p.minute}${String(p.dayPeriod).toUpperCase()}`;
+}
+
 /** "9:00 AM – 12:00 PM" on one day, otherwise "Oct 10, 9:00 AM – Oct 12, 5:00 PM". */
 export function formatTimeRange(startIso: string, endIso: string, timeZone: string) {
   const day = (iso: string) => formatInZone(iso, timeZone, { year: "numeric", month: "2-digit", day: "2-digit" });
