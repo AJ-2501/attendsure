@@ -6,7 +6,7 @@
 -- fails, nothing is changed.
 --
 -- Contains, in order: 20261019000003, 20261019000004, 20261019000005, 20261108000006, 20261108000007,
--- 20261108000008, 20261110000009.
+-- 20261108000008, 20261110000009, 20261112000010.
 -- =============================================================================
 begin;
 
@@ -232,6 +232,19 @@ update auth.users u
   from public.profiles p
  where p.auth_user_id = u.id
    and (u.raw_app_meta_data->>'role') is distinct from p.role;
+
+-- ----------------------------------------------------------------------------
+-- 20261112000010_rename_nursing_department.sql
+-- ----------------------------------------------------------------------------
+-- The College of Nursing is now the College of Nursing and Pharmacy. Fold the old name into
+-- the new one so reports group them as a single department.
+update public.registrations
+   set department = 'College of Nursing and Pharmacy'
+ where lower(btrim(department)) = 'college of nursing';
+
+update public.profiles
+   set department = 'College of Nursing and Pharmacy'
+ where lower(btrim(department)) = 'college of nursing';
 
 -- Make the API pick up the new columns and functions immediately.
 notify pgrst, 'reload schema';

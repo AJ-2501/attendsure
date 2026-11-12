@@ -19,6 +19,12 @@ export function normalizeSection(input: string): string {
   return input.normalize("NFKC").replace(/\s+/g, " ").trim().toUpperCase();
 }
 
+/** Collapse whitespace and map the college's former name to its current one. */
+export function normalizeDepartment(input: string): string {
+  const s = input.replace(/\s+/g, " ").trim();
+  return s.toLowerCase() === "college of nursing" ? "College of Nursing and Pharmacy" : s;
+}
+
 /** Fixed for every event: a 10-digit UA student ID and a school (@ua.edu.ph) email. */
 export const STUDENT_ID_PATTERN = "^[0-9]{10}$";
 
@@ -97,7 +103,7 @@ export function buildRegistrationSchema(rules: RegistrationRules) {
         .string()
         .optional()
         .default("")
-        .transform((s) => s.replace(/\s+/g, " ").trim())
+        .transform(normalizeDepartment)
         .pipe(rf.department ? z.string().min(2, "College/department is required").max(120) : z.string().max(120)),
       yearLevel: z
         .string()
@@ -347,7 +353,7 @@ export const studentProfileSchema = z.object({
     .transform(normalizeSection)
     .pipe(z.string().min(1, "Enter your section, e.g. BSN-1A").max(40).regex(/^[A-Z0-9][A-Z0-9 \-]*$/, "Use letters, numbers, spaces or hyphens")),
   yearLevel: z.enum(YEAR_LEVELS, { message: "Select your year level" }),
-  department: z.string().transform((s) => s.replace(/\s+/g, " ").trim()).pipe(z.string().min(2, "Enter your college or department").max(120)),
+  department: z.string().transform(normalizeDepartment).pipe(z.string().min(2, "Enter your college or department").max(120)),
   email: z
     .string()
     .trim()
