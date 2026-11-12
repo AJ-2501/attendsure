@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LayoutDashboard, ScanLine, Users, Calendar, BarChart2, ClipboardList, LogOut, Menu, X, ShieldAlert, Home, KeyRound } from "lucide-react";
+import { LayoutDashboard, ScanLine, Users, Calendar, BarChart2, ClipboardList, LogOut, Menu, X, Home, KeyRound } from "lucide-react";
 import { clsx } from "clsx";
 import { Logo } from "@/components/Brand";
 import { can, type Permission } from "@/lib/auth/permissions";
@@ -15,7 +15,6 @@ const LINKS: { href: string; icon: typeof Home; label: string; exact?: boolean; 
   { href: "/admin/events", icon: Calendar, label: "Events" },
   { href: "/admin/reports", icon: BarChart2, label: "Reports" },
   { href: "/admin/audit", icon: ClipboardList, label: "Audit Log" },
-  { href: "/admin/integrity", icon: ShieldAlert, label: "Integrity" },
   { href: "/admin/decrypt", icon: KeyRound, label: "Decrypt", permission: "records.decrypt" },
 ];
 
