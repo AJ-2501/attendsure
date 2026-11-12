@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LayoutDashboard, ScanLine, Users, Calendar, BarChart2, ClipboardList, LogOut, Menu, X, ShieldAlert, Home, KeyRound } from "lucide-react";
@@ -28,7 +28,6 @@ interface Props {
 
 export default function AdminShell({ displayName, email, role, children }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -40,15 +39,16 @@ export default function AdminShell({ displayName, email, role, children }: Props
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
-  useEffect(() => {
-    router.prefetch("/login");
-  }, [router]);
-
   async function signOut() {
     setSigningOut(true);
-    await createClient().auth.signOut();
-    router.replace("/login");
-    router.refresh();
+    try {
+      await createClient().auth.signOut();
+    } finally {
+      // Hard navigation: router.refresh() only clears the current route, so prefetched /admin
+      // payloads (and a cached redirect from /admin to /login) would otherwise survive sign-out
+      // and bounce the next sign-in back to the login page.
+      window.location.replace("/login");
+    }
   }
 
   const isActive = (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href));

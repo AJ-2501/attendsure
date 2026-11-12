@@ -38,7 +38,6 @@ export function RefreshButton() {
 }
 
 export function SignOutButton() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   return (
     <button
@@ -46,9 +45,12 @@ export function SignOutButton() {
       disabled={busy}
       onClick={async () => {
         setBusy(true);
-        await createClient().auth.signOut();
-        router.replace("/student/login");
-        router.refresh();
+        try {
+          await createClient().auth.signOut();
+        } finally {
+          // Hard navigation so no signed-in router cache survives into the next session.
+          window.location.replace("/student/login");
+        }
       }}
       className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10"
       aria-label="Sign out"
