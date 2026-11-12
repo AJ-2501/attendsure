@@ -1,22 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AttendSure
 
-## Getting Started
+Event registration and QR attendance for the UA College of Nursing and Pharmacy.
+Students sign up with their UA Google account, register for events and get a QR pass;
+staff scan passes at the door (time-in / time-out), manage events and export encrypted reports.
 
-First, run the development server:
+## Repository layout
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+attendsure/
+├── frontend/   Next.js 16 app: pages, API routes (src/app/api), server logic (src/lib), tests
+└── backend/    Supabase database: schema migrations, RLS policies, SQL functions, admin setup
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The API runs inside the Next.js app (route handlers and server actions), so `frontend/` is the
+only thing you deploy. `backend/` is the database the app talks to, see [backend/README.md](backend/README.md).
 
-### Google sign-in (students): allow every origin you run on
+## Getting started
+
+Requirements: Node.js 22, a Supabase project.
+
+1. Set up the database: follow [backend/README.md](backend/README.md).
+2. Configure the app:
+   ```bash
+   cd frontend
+   cp .env.example .env.local   # then fill in the values (see comments in the file)
+   npm ci
+   ```
+3. Run it:
+   ```bash
+   npm run dev        # http://localhost:3000
+   ```
+
+| Command (in `frontend/`) | What it does |
+|---|---|
+| `npm run dev` | Development server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm run lint` | ESLint |
+| `npm test` | Unit tests (Vitest) |
+| `node scripts/generate-favicons.mjs` | Regenerate icons from `assets/brand/` |
+
+## Google sign-in (students): allow every origin you run on
 
 Students sign in with Google through Supabase Auth. The app asks Supabase to return to
 `<current origin>/auth/callback`, but Supabase only honours that if the URL is on its allow-list;
@@ -36,21 +59,13 @@ No code or environment change is needed; changes apply immediately. In Google Cl
 OAuth client's authorized redirect URI stays the single Supabase URL
 (`https://<project-ref>.supabase.co/auth/v1/callback`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploying (Vercel)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+In **Vercel → Project Settings → General**, set **Root Directory** to `frontend`, and add every
+variable from `frontend/.env.example` under **Environment Variables**.
 
-## Learn More
+## Security notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Never commit `.env.local` or any real key. Only `frontend/.env.example` (names, no values) is tracked.
+- Personal data (names, student IDs, emails) is stored encrypted; exports stay encrypted and can
+  only be decrypted on `/admin/decrypt`, where every access is audited.
