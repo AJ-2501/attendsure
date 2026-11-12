@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertTriangle, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, UserRound } from "lucide-react";
@@ -36,11 +35,8 @@ export default function SignInForm({
   next?: string | null;
   initialError?: string | null;
 }) {
-  const router = useRouter();
   const [show, setShow] = useState(false);
   const [formError, setFormError] = useState<string | null>(initialError);
-  // No prefetch of the destination here: fetched while signed out it would hold the sign-in redirect,
-  // and navigating onto it after signing in would need a second (refresh) render to correct.
 
   const {
     register,
@@ -89,9 +85,12 @@ export default function SignInForm({
         showFormError(INVALID_CREDENTIALS_MESSAGE);
         return;
       }
-      // One navigation: it renders the destination with the new session cookies. Nothing for this
-      // route was cached while signed in, so no follow-up router.refresh() is needed.
-      router.replace(safeNext(next, redirectTo));
+      // Hard navigation across the auth boundary: the client router cache may still hold a
+      // signed-out render of the destination (a redirect back to the sign-in page), which a
+      // soft router.replace() would reuse. A document load always renders with the new cookies.
+      window.location.replace(safeNext(next, redirectTo));
+      // Keep the submit button in its busy state until the page unloads.
+      await new Promise<never>(() => {});
     } catch (err) {
       showFormError(friendlyError(err instanceof Error ? err.message : ""));
     }
