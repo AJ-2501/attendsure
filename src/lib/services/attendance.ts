@@ -147,18 +147,3 @@ export async function exportAttendanceCsv(eventId: string): Promise<string> {
   });
   return [header, ...rows].join("\r\n");
 }
-
-/** Integrity flags: repeated rejected scans, reuse attempts, multiple corrections. */
-export async function getIntegrityFlags(eventId: string) {
-  const db = createAdminClient();
-  const { data } = await db
-    .from("scan_attempts")
-    .select("registration_id, result, result_code, count:registration_id.count()")
-    .eq("event_id", eventId)
-    .eq("result", "rejected")
-    .not("registration_id", "is", null)
-    .order("count", { ascending: false })
-    .limit(50)
-    .returns<{ registration_id: string; result_code: string; count: number }[]>();
-  return data ?? [];
-}
