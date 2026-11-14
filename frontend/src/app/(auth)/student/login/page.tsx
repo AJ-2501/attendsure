@@ -59,9 +59,6 @@ export default async function StudentLoginPage({ searchParams }: { searchParams:
             <p className="relative font-bold text-ink">New here?</p>
             <p className="relative">Register for an event and create your account in one step. Your QR pass appears on your dashboard right away.</p>
             <Link href={registerHref} className="btn-secondary relative w-full mt-1 border-brand-200 text-brand-700 hover:border-brand-400">Register</Link>
-            <Link href="/student/signup" className="relative text-center text-[13px] font-semibold text-brand-600 hover:underline underline-offset-2 min-h-11 inline-flex items-center justify-center">
-              Already registered without an account? Use your reference code
-            </Link>
           </div>
         </>
       )}

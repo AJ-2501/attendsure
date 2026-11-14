@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { EventRow, PublicEvent } from "@/lib/types";
 export type { PublicEvent };
@@ -227,3 +228,20 @@ export async function deleteEvent(id: string, actorId: string, reason: string): 
   if (!r.ok) return { ok: false, code: (r.code as "NOT_FOUND" | "REASON_REQUIRED") ?? "ERROR" };
   return { ok: true, registrations: r.registrations ?? 0, attended: r.attended ?? 0 };
 }
+
+export const PUBLIC_EVENTS_TAG = "public-events";
+
+/**
+ * Landing-page data (published events + registration counts) shared across requests for a short
+ * window, so visitors don't wait on two database round-trips. Event edits purge it immediately
+ * via PUBLIC_EVENTS_TAG; registration counts may lag by up to the revalidate window.
+ */
+export const getLandingEvents = unstable_cache(
+  async (): Promise<{ events: EventRow[]; registered: Record<string, number> }> => {
+    const cutoff = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    const [events, registered] = await Promise.all([listPublishedEvents(), countPublishedRegistrations(cutoff)]);
+    return { events, registered };
+  },
+  ["landing-events"],
+  { revalidate: 30, tags: [PUBLIC_EVENTS_TAG] },
+);

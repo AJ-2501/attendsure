@@ -1,7 +1,7 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requirePermission, AuthError } from "@/lib/auth/session";
-import { createEvent, deleteEvent, getEventById, updateEvent } from "@/lib/services/events";
+import { createEvent, deleteEvent, getEventById, updateEvent, PUBLIC_EVENTS_TAG } from "@/lib/services/events";
 import { eventSchema } from "@/lib/schemas";
 import { log } from "@/lib/logger";
 import type { EventFormResult } from "./EventFormClient";
@@ -19,6 +19,7 @@ function validation(data: unknown) {
 }
 
 function refresh(id?: string) {
+  revalidateTag(PUBLIC_EVENTS_TAG, { expire: 0 });
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/events");
