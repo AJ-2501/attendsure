@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { listPublishedEvents, countPublishedRegistrations, toPublicEvent } from "@/lib/services/events";
+import { getLandingEvents, toPublicEvent } from "@/lib/services/events";
 import { effectiveStatus, registrationPhase } from "@/lib/time";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowDown, BadgeCheck, LockKeyhole, QrCode, ScanLine, ShieldCheck, UserRound, Zap } from "lucide-react";
+import { ArrowDown, QrCode, ScanLine, ShieldCheck, UserRound } from "lucide-react";
 import { Logo } from "@/components/Brand";
 import SealScene from "@/components/SealScene";
 import EventBrowser, { type EventItem } from "@/components/EventBrowser";
@@ -23,8 +23,8 @@ export default async function HomePage() {
   const now = new Date();
   // Keep past events from the last 60 days only, so the "Past" tab stays relevant.
   const cutoff = now.getTime() - 60 * 86_400_000;
-  // Events and their registration counts load in parallel (counts filter by event in the database).
-  const [events, registered] = await Promise.all([listPublishedEvents(), countPublishedRegistrations(new Date(cutoff).toISOString())]);
+  // Cached for a few seconds and purged when events change; event status below is still computed per request.
+  const { events, registered } = await getLandingEvents();
   const items: EventItem[] = events
     .filter((e) => Date.parse(e.ends_at) >= cutoff)
     .map((e) => ({ event: toPublicEvent(e), status: effectiveStatus(e, now), regPhase: registrationPhase(e, now), registered: registered[e.id] ?? 0 }));
@@ -54,7 +54,7 @@ export default async function HomePage() {
           alt=""
           fill
           priority
-          quality={90}
+          quality={75}
           sizes="(min-width: 1536px) 1536px, 100vw"
           className="absolute inset-0 object-cover object-[50%_60%] lg:object-center select-none pointer-events-none"
         />
@@ -87,11 +87,26 @@ export default async function HomePage() {
                 {openCount} event{openCount === 1 ? "" : "s"} open for registration →
               </JumpToEvents>
             )}
-            <ul className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-[13px] text-[#9fc2bf]">
-              <li className="inline-flex items-center gap-1.5"><LockKeyhole className="w-4 h-4 text-mint/80" aria-hidden="true" /> Encrypted QR passes</li>
-              <li className="inline-flex items-center gap-1.5"><Zap className="w-4 h-4 text-mint/80" aria-hidden="true" /> Instant check-in</li>
-              <li className="inline-flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-mint/80" aria-hidden="true" /> Verified attendance</li>
-            </ul>
+            <ol aria-label="How it works" className="mt-2 pt-4 border-t border-white/10 grid grid-cols-3 gap-2 sm:gap-4 max-w-lg">
+              {[
+                { icon: UserRound, step: "Register", hint: "Pick an event" },
+                { icon: QrCode, step: "Get your pass", hint: "QR on your dashboard" },
+                { icon: ScanLine, step: "Scan in", hint: "Show it at the door" },
+              ].map(({ icon: Icon, step, hint }, i) => (
+                <li key={step} className="flex flex-col gap-2 min-w-0">
+                  <span className="flex items-center gap-2">
+                    <span className="w-9 h-9 shrink-0 rounded-xl bg-mint/15 text-mint flex items-center justify-center">
+                      <Icon className="w-[18px] h-[18px]" aria-hidden="true" />
+                    </span>
+                    <span className="text-[11px] font-bold tracking-[0.08em] text-white/40" aria-hidden="true">0{i + 1}</span>
+                  </span>
+                  <span className="flex flex-col leading-snug min-w-0">
+                    <span className="text-sm font-bold text-white">{step}</span>
+                    <span className="text-[12px] text-[#9fc2bf] text-pretty">{hint}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
           </div>
 
           {/* Decorative: 3D CONP seal medallion with floating pass/check-in chips */}
