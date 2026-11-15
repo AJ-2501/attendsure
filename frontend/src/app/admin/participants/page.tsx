@@ -8,7 +8,6 @@ import { formatInZone } from "@/lib/time";
 import { clsx } from "clsx";
 import Link from "next/link";
 import { Download, KeyRound } from "lucide-react";
-import type { RegistrationRow } from "@/lib/types";
 import ParticipantFilters from "./ParticipantFilters";
 
 export const metadata: Metadata = { title: "Participants" };
@@ -45,7 +44,7 @@ export default async function ParticipantsPage({
   const activeEventId = eventId || events[0]?.id || "";
   const activeEvent = events.find((e) => e.id === activeEventId);
 
-  let rows: import("@/lib/types").RegistrationRow[] = [];
+  let rows: Awaited<ReturnType<typeof loadRows>>["rows"] = [];
   let total = 0;
   const result = early ?? (activeEventId ? await loadRows(activeEventId) : null);
   if (result) {
@@ -96,12 +95,12 @@ export default async function ParticipantsPage({
 
       {(() => {
         const tz = activeEvent?.timezone ?? "UTC";
-        const items = rows.map((reg: RegistrationRow & { attendance_records?: { time_in_at?: string; time_out_at?: string; status?: string }[] }) => {
+        const items = rows.map((reg) => {
           let name = "—";
           try { name = decryptIdentity(reg).fullName; } catch {}
-          const att = reg.attendance_records?.[0];
+          const att = reg.attendance;
           const attStatus = reg.registration_status === "cancelled" ? "cancelled" : (att?.status ?? "absent");
-          const t = (iso?: string) => (iso ? formatInZone(iso, tz, { timeStyle: "short" }) : "—");
+          const t = (iso?: string | null) => (iso ? formatInZone(iso, tz, { timeStyle: "short" }) : "—");
           return { reg, name, att, attStatus, timeIn: t(att?.time_in_at), timeOut: t(att?.time_out_at) };
         });
         const label = (s: string) => ({ absent: "Not arrived", checked_in: "Checked in", completed: "Completed", cancelled: "Cancelled" })[s] ?? s;

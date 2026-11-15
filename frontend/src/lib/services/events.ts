@@ -2,8 +2,10 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
-import type { EventRow, PublicEvent } from "@/lib/types";
+import type { AttendanceRow, EventRow, PublicEvent, RegistrationRow } from "@/lib/types";
 export type { PublicEvent };
+
+type ParticipantAttendance = Pick<AttendanceRow, "time_in_at" | "time_out_at" | "status">;
 import type { EventParsed } from "@/lib/schemas";
 
 /** Deduplicated per request (React cache): repeated calls in one render share one query. */
@@ -125,16 +127,28 @@ export async function listParticipants(opts: {
 }) {
   const db = createAdminClient();
   const from = (opts.page - 1) * opts.pageSize;
+  // "cancelled" lives on the registration; the other statuses live on its attendance record.
+  const byAttendance = !!opts.status && opts.status !== "cancelled";
+  // Filtering on an embedded column only narrows the parent rows (and the count) with an inner join.
+  const embed = byAttendance ? "attendance_records!inner" : "attendance_records";
   let q = db
     .from("registrations")
-    .select("*, attendance_records(time_in_at, time_out_at, status)", { count: "exact" })
+    .select(`*, ${embed}(time_in_at, time_out_at, status)`, { count: "exact" })
     .eq("event_id", opts.eventId);
   if (opts.section) q = q.ilike("section", `%${opts.section}%`);
-  if (opts.status) q = q.eq("attendance_records.status", opts.status);
+  if (opts.status === "cancelled") q = q.eq("registration_status", "cancelled");
+  else if (byAttendance) q = q.eq("attendance_records.status", opts.status!).neq("registration_status", "cancelled");
   q = q.order(opts.sort, { ascending: opts.dir === "asc" }).range(from, from + opts.pageSize - 1);
   const { data, count, error } = await q;
   if (error) throw error;
-  return { rows: data ?? [], total: count ?? 0 };
+  // attendance_records.registration_id is unique, so PostgREST embeds it as a single object, not an array.
+  const rows = ((data ?? []) as unknown as (RegistrationRow & { attendance_records: ParticipantAttendance | ParticipantAttendance[] | null })[]).map(
+    ({ attendance_records: att, ...reg }) => ({
+      ...(reg as RegistrationRow),
+      attendance: (Array.isArray(att) ? att[0] : att) ?? null,
+    }),
+  );
+  return { rows, total: count ?? 0 };
 }
 
 export function toPublicEvent(e: EventRow): PublicEvent {
